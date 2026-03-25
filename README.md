@@ -1,2 +1,3 @@
-# casa-em-dia
-App de Finanças Simples para uso Familiar
+# Casa em Dia
+
+Base inicial de um projeto Next.js com App Router e TypeScript.
