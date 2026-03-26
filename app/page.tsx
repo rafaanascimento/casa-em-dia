@@ -193,6 +193,7 @@ const getMonthAlerts = (month: ProjectionMonth) => {
 
 export default function HomePage() {
   const router = useRouter();
+
   const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [isCreatingFamily, setIsCreatingFamily] = useState(false);
   const [isSavingEntry, setIsSavingEntry] = useState(false);
@@ -614,6 +615,7 @@ export default function HomePage() {
     await loadFinancialData(familyId);
   };
 
+<<<<<<< codex/implement-initial-family-context-for-casa-em-dia-ing0op
   const handleDeleteEntry = async (entryId: string) => {
     const shouldDelete = window.confirm('Tem certeza que deseja excluir esta entrada?');
 
@@ -670,6 +672,8 @@ export default function HomePage() {
     await loadFinancialData(familyId);
   };
 
+=======
+>>>>>>> main
   const handleLogout = async () => {
     setError('');
 
@@ -1249,9 +1253,12 @@ export default function HomePage() {
                     <button type="button" onClick={() => handleStartEditEntry(entryItem)}>
                       Editar
                     </button>
+<<<<<<< codex/implement-initial-family-context-for-casa-em-dia-ing0op
                     <button type="button" onClick={() => handleDeleteEntry(entryItem.id)}>
                       Excluir
                     </button>
+=======
+>>>>>>> main
                   </td>
                 </tr>
               ))}
@@ -1465,9 +1472,12 @@ export default function HomePage() {
                     <button type="button" onClick={() => handleStartEditObligation(obligationItem)}>
                       Editar
                     </button>
+<<<<<<< codex/implement-initial-family-context-for-casa-em-dia-ing0op
                     <button type="button" onClick={() => handleDeleteObligation(obligationItem.id)}>
                       Excluir
                     </button>
+=======
+>>>>>>> main
                   </td>
                 </tr>
               ))}
@@ -1479,6 +1489,7 @@ export default function HomePage() {
       <button type="button" onClick={handleLogout}>
         Sair
       </button>
+
       {error ? <p>{error}</p> : null}
     </main>
   );
