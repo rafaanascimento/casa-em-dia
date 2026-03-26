@@ -615,6 +615,64 @@ export default function HomePage() {
     await loadFinancialData(familyId);
   };
 
+
+  const handleDeleteEntry = async (entryId: string) => {
+    const shouldDelete = window.confirm('Tem certeza que deseja excluir esta entrada?');
+
+    if (!shouldDelete) {
+      return;
+    }
+
+    setError('');
+
+    const { error: deleteEntryError } = await supabase
+      .from('entries')
+      .delete()
+      .eq('id', entryId)
+      .eq('family_id', familyId);
+
+    if (deleteEntryError) {
+      setError('Não foi possível excluir a entrada.');
+      return;
+    }
+
+    if (editingEntryId === entryId) {
+      setEditingEntryId(null);
+      setEditingEntryForm(initialEntryForm);
+    }
+
+    await loadFinancialData(familyId);
+  };
+
+  const handleDeleteObligation = async (obligationId: string) => {
+    const shouldDelete = window.confirm('Tem certeza que deseja excluir esta despesa?');
+
+    if (!shouldDelete) {
+      return;
+    }
+
+    setError('');
+
+    const { error: deleteObligationError } = await supabase
+      .from('obligations')
+      .delete()
+      .eq('id', obligationId)
+      .eq('family_id', familyId);
+
+    if (deleteObligationError) {
+      setError('Não foi possível excluir a despesa.');
+      return;
+    }
+
+    if (editingObligationId === obligationId) {
+      setEditingObligationId(null);
+      setEditingObligationForm(initialObligationForm);
+    }
+
+    await loadFinancialData(familyId);
+  };
+
+
   const handleLogout = async () => {
     setError('');
 
@@ -1194,6 +1252,11 @@ export default function HomePage() {
                     <button type="button" onClick={() => handleStartEditEntry(entryItem)}>
                       Editar
                     </button>
+
+                    <button type="button" onClick={() => handleDeleteEntry(entryItem.id)}>
+                      Excluir
+                    </button>
+
                   </td>
                 </tr>
               ))}
@@ -1407,6 +1470,11 @@ export default function HomePage() {
                     <button type="button" onClick={() => handleStartEditObligation(obligationItem)}>
                       Editar
                     </button>
+
+                    <button type="button" onClick={() => handleDeleteObligation(obligationItem.id)}>
+                      Excluir
+                    </button>
+
                   </td>
                 </tr>
               ))}
