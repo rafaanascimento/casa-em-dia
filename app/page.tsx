@@ -247,6 +247,58 @@ const getMonthAlerts = (month: ProjectionMonth) => {
   return alerts;
 };
 
+const getCurrentMonthSituation = (partialActualBalance: number, plannedBalance: number) => {
+  if (partialActualBalance < 0) {
+    return {
+      level: 'negativo',
+      message: 'Mês negativo até agora'
+    };
+  }
+
+  if (partialActualBalance === 0) {
+    return {
+      level: 'risco',
+      message: 'Mês em risco'
+    };
+  }
+
+  if (plannedBalance > 0 && partialActualBalance <= plannedBalance * 0.2) {
+    return {
+      level: 'risco',
+      message: 'Mês em risco'
+    };
+  }
+
+  return {
+    level: 'positivo',
+    message: 'Mês positivo até agora'
+  };
+};
+
+const getExpectedComparison = (partialActualBalance: number, plannedBalance: number) => {
+  const difference = partialActualBalance - plannedBalance;
+  const threshold = Math.max(Math.abs(plannedBalance) * 0.1, 50);
+
+  if (difference > threshold) {
+    return {
+      level: 'acima',
+      message: 'O mês está mais leve que o planejado'
+    };
+  }
+
+  if (difference < -threshold) {
+    return {
+      level: 'abaixo',
+      message: 'Você já comprometeu grande parte do saldo'
+    };
+  }
+
+  return {
+    level: 'dentro',
+    message: 'Você está dentro do esperado'
+  };
+};
+
 const normalizeSourceType = (sourceType: string) => {
   const normalizedValue = sourceType.trim().toLowerCase();
 
@@ -1176,6 +1228,10 @@ export default function HomePage() {
               const nextMonthAlerts = nextMonthAlertsByKey.get(month.key) ?? [];
               const monthDetails = monthDetailsByKey.get(month.key);
               const monthPlannedVsActual = monthPlannedVsActualByKey.get(month.key);
+              const plannedBalance = monthPlannedVsActual?.plannedBalance ?? month.balance;
+              const partialActualBalance = monthPlannedVsActual?.partialActualBalance ?? 0;
+              const currentSituation = getCurrentMonthSituation(partialActualBalance, plannedBalance);
+              const expectedComparison = getExpectedComparison(partialActualBalance, plannedBalance);
 
               return (
                 <article key={`summary-${month.key}`}>
@@ -1199,6 +1255,11 @@ export default function HomePage() {
                     Saldo realizado parcial:{' '}
                     {currencyFormatter.format(monthPlannedVsActual?.partialActualBalance ?? 0)}
                   </p>
+                  <p>Leitura executiva:</p>
+                  <ul>
+                    <li>{currentSituation.message}</li>
+                    <li>{expectedComparison.message}</li>
+                  </ul>
                   <p>Alertas automáticos básicos:</p>
                   <ul>
                     {monthAlerts.length > 0 ? (
