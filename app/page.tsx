@@ -47,21 +47,27 @@ type ObligationRow = {
 };
 
 type EntryListRow = {
+  id: string;
   title: string;
   amount: number;
   recurrence_type: 'monthly' | 'one_time';
   start_date: string;
+  end_date: string | null;
+  due_day: number | null;
   block_type: '10' | '25';
   is_active: boolean;
 };
 
 type ObligationListRow = {
+  id: string;
   title: string;
   amount: number;
   type: 'fixa' | 'unica' | 'parcelada';
   recurrence_type: 'monthly' | 'one_time';
   total_installments: number | null;
   start_date: string;
+  end_date: string | null;
+  due_day: number | null;
   block_type: '10' | '25';
   is_active: boolean;
 };
@@ -205,6 +211,12 @@ export default function HomePage() {
   const [obligations, setObligations] = useState<ObligationRow[]>([]);
   const [entryList, setEntryList] = useState<EntryListRow[]>([]);
   const [obligationList, setObligationList] = useState<ObligationListRow[]>([]);
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
+  const [editingObligationId, setEditingObligationId] = useState<string | null>(null);
+  const [editingEntryForm, setEditingEntryForm] = useState<EntryFormState>(initialEntryForm);
+  const [editingObligationForm, setEditingObligationForm] = useState<ObligationFormState>(initialObligationForm);
+  const [isUpdatingEntry, setIsUpdatingEntry] = useState(false);
+  const [isUpdatingObligation, setIsUpdatingObligation] = useState(false);
   const [error, setError] = useState('');
   const [entrySuccessMessage, setEntrySuccessMessage] = useState('');
   const [obligationSuccessMessage, setObligationSuccessMessage] = useState('');
@@ -230,12 +242,14 @@ export default function HomePage() {
           .eq('is_active', true),
         supabase
           .from('entries')
-          .select('title, amount, recurrence_type, start_date, block_type, is_active')
+          .select('id, title, amount, recurrence_type, start_date, end_date, due_day, block_type, is_active')
           .eq('family_id', currentFamilyId)
           .order('created_at', { ascending: false }),
         supabase
           .from('obligations')
-          .select('title, amount, type, recurrence_type, total_installments, start_date, block_type, is_active')
+          .select(
+            'id, title, amount, type, recurrence_type, total_installments, start_date, end_date, due_day, block_type, is_active'
+          )
           .eq('family_id', currentFamilyId)
           .order('created_at', { ascending: false })
       ]);
@@ -489,6 +503,115 @@ export default function HomePage() {
     setObligationForm(initialObligationForm);
     setObligationSuccessMessage('Despesa cadastrada com sucesso.');
     setIsSavingObligation(false);
+    await loadFinancialData(familyId);
+  };
+
+  const handleStartEditEntry = (entryItem: EntryListRow) => {
+    setEditingEntryId(entryItem.id);
+    setEditingEntryForm({
+      title: entryItem.title,
+      amount: String(entryItem.amount),
+      recurrenceType: entryItem.recurrence_type,
+      startDate: entryItem.start_date,
+      endDate: entryItem.end_date ?? '',
+      dueDay: entryItem.due_day ? String(entryItem.due_day) : '',
+      blockType: entryItem.block_type,
+      isActive: entryItem.is_active
+    });
+  };
+
+  const handleUpdateEntry = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!editingEntryId) {
+      return;
+    }
+
+    setError('');
+    setIsUpdatingEntry(true);
+
+    const { error: updateEntryError } = await supabase
+      .from('entries')
+      .update({
+        title: editingEntryForm.title.trim(),
+        amount: Number(editingEntryForm.amount),
+        recurrence_type: editingEntryForm.recurrenceType,
+        start_date: editingEntryForm.startDate,
+        end_date: editingEntryForm.endDate || null,
+        due_day: Number(editingEntryForm.dueDay),
+        block_type: editingEntryForm.blockType,
+        is_active: editingEntryForm.isActive
+      })
+      .eq('id', editingEntryId)
+      .eq('family_id', familyId);
+
+    if (updateEntryError) {
+      setError('Não foi possível atualizar a entrada.');
+      setIsUpdatingEntry(false);
+      return;
+    }
+
+    setEditingEntryId(null);
+    setEditingEntryForm(initialEntryForm);
+    setIsUpdatingEntry(false);
+    await loadFinancialData(familyId);
+  };
+
+  const handleStartEditObligation = (obligationItem: ObligationListRow) => {
+    setEditingObligationId(obligationItem.id);
+    setEditingObligationForm({
+      title: obligationItem.title,
+      amount: String(obligationItem.amount),
+      type: obligationItem.type,
+      recurrenceType: obligationItem.recurrence_type,
+      totalInstallments: obligationItem.total_installments ? String(obligationItem.total_installments) : '',
+      startDate: obligationItem.start_date,
+      endDate: obligationItem.end_date ?? '',
+      dueDay: obligationItem.due_day ? String(obligationItem.due_day) : '',
+      blockType: obligationItem.block_type,
+      isActive: obligationItem.is_active
+    });
+  };
+
+  const handleUpdateObligation = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!editingObligationId) {
+      return;
+    }
+
+    setError('');
+    setIsUpdatingObligation(true);
+
+    const installments =
+      editingObligationForm.type === 'parcelada' ? Number(editingObligationForm.totalInstallments) : null;
+
+    const { error: updateObligationError } = await supabase
+      .from('obligations')
+      .update({
+        title: editingObligationForm.title.trim(),
+        amount: Number(editingObligationForm.amount),
+        type: editingObligationForm.type,
+        recurrence_type: editingObligationForm.recurrenceType,
+        total_installments: installments,
+        start_date: editingObligationForm.startDate,
+        end_date: editingObligationForm.endDate || null,
+        due_day: Number(editingObligationForm.dueDay),
+        block_type: editingObligationForm.blockType,
+        is_active: editingObligationForm.isActive
+      })
+      .eq('id', editingObligationId)
+      .eq('family_id', familyId);
+
+    if (updateObligationError) {
+      setError('Não foi possível atualizar a despesa.');
+      setIsUpdatingObligation(false);
+      return;
+    }
+
+    setEditingObligationId(null);
+    setEditingObligationForm(initialObligationForm);
+    setIsUpdatingObligation(false);
     await loadFinancialData(familyId);
   };
 
@@ -915,6 +1038,137 @@ export default function HomePage() {
 
         <section>
           <h2>Entradas cadastradas</h2>
+          {editingEntryId ? (
+            <form onSubmit={handleUpdateEntry}>
+              <h3>Editar entrada</h3>
+              <div>
+                <label htmlFor="editEntryTitle">Título</label>
+                <input
+                  id="editEntryTitle"
+                  type="text"
+                  value={editingEntryForm.title}
+                  onChange={(event) =>
+                    setEditingEntryForm({ ...editingEntryForm, title: event.target.value })
+                  }
+                  required
+                />
+              </div>
+
+              <div>
+                <label htmlFor="editEntryAmount">Valor</label>
+                <input
+                  id="editEntryAmount"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={editingEntryForm.amount}
+                  onChange={(event) =>
+                    setEditingEntryForm({ ...editingEntryForm, amount: event.target.value })
+                  }
+                  required
+                />
+              </div>
+
+              <div>
+                <label htmlFor="editEntryRecurrenceType">Recorrência</label>
+                <select
+                  id="editEntryRecurrenceType"
+                  value={editingEntryForm.recurrenceType}
+                  onChange={(event) =>
+                    setEditingEntryForm({
+                      ...editingEntryForm,
+                      recurrenceType: event.target.value as EntryFormState['recurrenceType']
+                    })
+                  }
+                >
+                  <option value="monthly">Mensal</option>
+                  <option value="one_time">Avulsa</option>
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="editEntryStartDate">Data inicial</label>
+                <input
+                  id="editEntryStartDate"
+                  type="date"
+                  value={editingEntryForm.startDate}
+                  onChange={(event) =>
+                    setEditingEntryForm({ ...editingEntryForm, startDate: event.target.value })
+                  }
+                  required
+                />
+              </div>
+
+              <div>
+                <label htmlFor="editEntryEndDate">Data final</label>
+                <input
+                  id="editEntryEndDate"
+                  type="date"
+                  value={editingEntryForm.endDate}
+                  onChange={(event) =>
+                    setEditingEntryForm({ ...editingEntryForm, endDate: event.target.value })
+                  }
+                />
+              </div>
+
+              <div>
+                <label htmlFor="editEntryDueDay">Dia de vencimento</label>
+                <input
+                  id="editEntryDueDay"
+                  type="number"
+                  min="1"
+                  max="31"
+                  value={editingEntryForm.dueDay}
+                  onChange={(event) =>
+                    setEditingEntryForm({ ...editingEntryForm, dueDay: event.target.value })
+                  }
+                  required
+                />
+              </div>
+
+              <div>
+                <label htmlFor="editEntryBlockType">Bloco</label>
+                <select
+                  id="editEntryBlockType"
+                  value={editingEntryForm.blockType}
+                  onChange={(event) =>
+                    setEditingEntryForm({
+                      ...editingEntryForm,
+                      blockType: event.target.value as EntryFormState['blockType']
+                    })
+                  }
+                >
+                  <option value="10">10</option>
+                  <option value="25">25</option>
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="editEntryIsActive">Ativo</label>
+                <input
+                  id="editEntryIsActive"
+                  type="checkbox"
+                  checked={editingEntryForm.isActive}
+                  onChange={(event) =>
+                    setEditingEntryForm({ ...editingEntryForm, isActive: event.target.checked })
+                  }
+                />
+              </div>
+
+              <button type="submit" disabled={isUpdatingEntry}>
+                {isUpdatingEntry ? 'Atualizando...' : 'Salvar entrada'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingEntryId(null);
+                  setEditingEntryForm(initialEntryForm);
+                }}
+              >
+                Cancelar
+              </button>
+            </form>
+          ) : null}
           <table>
             <thead>
               <tr>
@@ -924,6 +1178,7 @@ export default function HomePage() {
                 <th>Data inicial</th>
                 <th>Bloco</th>
                 <th>Ativo</th>
+                <th>Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -935,6 +1190,11 @@ export default function HomePage() {
                   <td>{entryItem.start_date}</td>
                   <td>{entryItem.block_type}</td>
                   <td>{entryItem.is_active ? 'Sim' : 'Não'}</td>
+                  <td>
+                    <button type="button" onClick={() => handleStartEditEntry(entryItem)}>
+                      Editar
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -943,6 +1203,179 @@ export default function HomePage() {
 
         <section>
           <h2>Despesas cadastradas</h2>
+          {editingObligationId ? (
+            <form onSubmit={handleUpdateObligation}>
+              <h3>Editar despesa</h3>
+              <div>
+                <label htmlFor="editObligationTitle">Título</label>
+                <input
+                  id="editObligationTitle"
+                  type="text"
+                  value={editingObligationForm.title}
+                  onChange={(event) =>
+                    setEditingObligationForm({ ...editingObligationForm, title: event.target.value })
+                  }
+                  required
+                />
+              </div>
+
+              <div>
+                <label htmlFor="editObligationAmount">Valor</label>
+                <input
+                  id="editObligationAmount"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={editingObligationForm.amount}
+                  onChange={(event) =>
+                    setEditingObligationForm({ ...editingObligationForm, amount: event.target.value })
+                  }
+                  required
+                />
+              </div>
+
+              <div>
+                <label htmlFor="editObligationType">Tipo</label>
+                <select
+                  id="editObligationType"
+                  value={editingObligationForm.type}
+                  onChange={(event) =>
+                    setEditingObligationForm({
+                      ...editingObligationForm,
+                      type: event.target.value as ObligationFormState['type'],
+                      totalInstallments:
+                        event.target.value === 'parcelada' ? editingObligationForm.totalInstallments : ''
+                    })
+                  }
+                >
+                  <option value="fixa">Fixa</option>
+                  <option value="unica">Única</option>
+                  <option value="parcelada">Parcelada</option>
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="editObligationRecurrenceType">Recorrência</label>
+                <select
+                  id="editObligationRecurrenceType"
+                  value={editingObligationForm.recurrenceType}
+                  onChange={(event) =>
+                    setEditingObligationForm({
+                      ...editingObligationForm,
+                      recurrenceType: event.target.value as ObligationFormState['recurrenceType']
+                    })
+                  }
+                >
+                  <option value="monthly">Mensal</option>
+                  <option value="one_time">Avulsa</option>
+                </select>
+              </div>
+
+              {editingObligationForm.type === 'parcelada' ? (
+                <div>
+                  <label htmlFor="editObligationInstallments">Total de parcelas</label>
+                  <input
+                    id="editObligationInstallments"
+                    type="number"
+                    min="1"
+                    value={editingObligationForm.totalInstallments}
+                    onChange={(event) =>
+                      setEditingObligationForm({
+                        ...editingObligationForm,
+                        totalInstallments: event.target.value
+                      })
+                    }
+                    required
+                  />
+                </div>
+              ) : null}
+
+              <div>
+                <label htmlFor="editObligationStartDate">Data inicial</label>
+                <input
+                  id="editObligationStartDate"
+                  type="date"
+                  value={editingObligationForm.startDate}
+                  onChange={(event) =>
+                    setEditingObligationForm({ ...editingObligationForm, startDate: event.target.value })
+                  }
+                  required
+                />
+              </div>
+
+              <div>
+                <label htmlFor="editObligationEndDate">Data final</label>
+                <input
+                  id="editObligationEndDate"
+                  type="date"
+                  value={editingObligationForm.endDate}
+                  onChange={(event) =>
+                    setEditingObligationForm({ ...editingObligationForm, endDate: event.target.value })
+                  }
+                />
+              </div>
+
+              <div>
+                <label htmlFor="editObligationDueDay">Dia de vencimento</label>
+                <input
+                  id="editObligationDueDay"
+                  type="number"
+                  min="1"
+                  max="31"
+                  value={editingObligationForm.dueDay}
+                  onChange={(event) =>
+                    setEditingObligationForm({ ...editingObligationForm, dueDay: event.target.value })
+                  }
+                  required
+                />
+              </div>
+
+              <div>
+                <label htmlFor="editObligationBlockType">Bloco</label>
+                <select
+                  id="editObligationBlockType"
+                  value={editingObligationForm.blockType}
+                  onChange={(event) =>
+                    setEditingObligationForm({
+                      ...editingObligationForm,
+                      blockType: event.target.value as ObligationFormState['blockType']
+                    })
+                  }
+                >
+                  <option value="10">10</option>
+                  <option value="25">25</option>
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="editObligationIsActive">Ativo</label>
+                <input
+                  id="editObligationIsActive"
+                  type="checkbox"
+                  checked={editingObligationForm.isActive}
+                  onChange={(event) =>
+                    setEditingObligationForm({
+                      ...editingObligationForm,
+                      isActive: event.target.checked
+                    })
+                  }
+                />
+              </div>
+
+              <button type="submit" disabled={isUpdatingObligation}>
+                {isUpdatingObligation ? 'Atualizando...' : 'Salvar despesa'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingObligationId(null);
+                  setEditingObligationForm(initialObligationForm);
+                }}
+              >
+                Cancelar
+              </button>
+            </form>
+          ) : null}
           <table>
             <thead>
               <tr>
@@ -954,6 +1387,7 @@ export default function HomePage() {
                 <th>Data inicial</th>
                 <th>Bloco</th>
                 <th>Ativo</th>
+                <th>Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -969,6 +1403,11 @@ export default function HomePage() {
                   <td>{obligationItem.start_date}</td>
                   <td>{obligationItem.block_type}</td>
                   <td>{obligationItem.is_active ? 'Sim' : 'Não'}</td>
+                  <td>
+                    <button type="button" onClick={() => handleStartEditObligation(obligationItem)}>
+                      Editar
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
