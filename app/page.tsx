@@ -299,6 +299,18 @@ const getExpectedComparison = (partialActualBalance: number, plannedBalance: num
   };
 };
 
+const getBalanceTone = (balance: number) => {
+  if (balance > 0) {
+    return 'status-positive';
+  }
+
+  if (balance < 0) {
+    return 'status-negative';
+  }
+
+  return 'status-tight';
+};
+
 const normalizeSourceType = (sourceType: string) => {
   const normalizedValue = sourceType.trim().toLowerCase();
 
@@ -1109,8 +1121,8 @@ export default function HomePage() {
 
   if (isCheckingSession) {
     return (
-      <main>
-        <h1>Casa em Dia</h1>
+      <main className="app-shell">
+        <h1 className="app-title">Casa em Dia</h1>
         <p>Verificando sessão...</p>
       </main>
     );
@@ -1118,8 +1130,8 @@ export default function HomePage() {
 
   if (!hasFamilyMembership) {
     return (
-      <main>
-        <h1>Casa em Dia</h1>
+      <main className="app-shell">
+        <h1 className="app-title">Casa em Dia</h1>
         <p>Vamos criar sua primeira família.</p>
 
         <form onSubmit={handleCreateFamily}>
@@ -1145,15 +1157,17 @@ export default function HomePage() {
   }
 
   return (
-    <main>
-      <h1>Casa em Dia</h1>
-      <p>Você está autenticado e já possui vínculo com uma família.</p>
+    <main className="app-shell">
+      <header className="app-header card">
+        <h1 className="app-title">Casa em Dia</h1>
+        <p>Você está autenticado e já possui vínculo com uma família.</p>
+      </header>
       {userEmail ? <p>Usuário: {userEmail}</p> : null}
 
-      <div>
-        <section>
+      <div className="content-grid">
+        <section className="card">
         <h2>Projeção mensal básica</h2>
-        <div>
+        <div className="button-row">
           <button type="button" onClick={() => setProjectionViewMode('monthly')}>
             Visão do mês
           </button>
@@ -1241,9 +1255,22 @@ export default function HomePage() {
                   <p>Saldo previsto: {currencyFormatter.format(month.balance)}</p>
                   <p>Total do bloco 10: {currencyFormatter.format(month.block10.balance)}</p>
                   <p>Total do bloco 25: {currencyFormatter.format(month.block25.balance)}</p>
-                  <p>Status do mês: {getMonthStatus(month.balance)}</p>
-                  <p>Status bloco 10: {getBlockStatus(month.block10.balance)}</p>
-                  <p>Status bloco 25: {getBlockStatus(month.block25.balance)}</p>
+                  <p>
+                    Status do mês:{' '}
+                    <span className={`status-pill ${getBalanceTone(month.balance)}`}>{getMonthStatus(month.balance)}</span>
+                  </p>
+                  <p>
+                    Status bloco 10:{' '}
+                    <span className={`status-pill ${getBalanceTone(month.block10.balance)}`}>
+                      {getBlockStatus(month.block10.balance)}
+                    </span>
+                  </p>
+                  <p>
+                    Status bloco 25:{' '}
+                    <span className={`status-pill ${getBalanceTone(month.block25.balance)}`}>
+                      {getBlockStatus(month.block25.balance)}
+                    </span>
+                  </p>
                   <p>Entradas previstas: {currencyFormatter.format(monthPlannedVsActual?.totalEntriesPlanned ?? 0)}</p>
                   <p>Entradas recebidas: {currencyFormatter.format(monthPlannedVsActual?.totalEntriesReceived ?? 0)}</p>
                   <p>Entradas pendentes: {currencyFormatter.format(monthPlannedVsActual?.totalEntriesPending ?? 0)}</p>
@@ -1301,7 +1328,9 @@ export default function HomePage() {
                             <li key={`${month.key}-entry-${entryItem.id}`}>
                               {entryItem.title} — {currencyFormatter.format(Number(entryItem.amount))} (
                               {entryItem.recurrence_type}, bloco {entryItem.block_type}) —{' '}
-                              {isReceived ? 'Recebida' : 'Pendente'}
+                              <span className={`status-pill ${isReceived ? 'status-success' : 'status-pending'}`}>
+                                {isReceived ? 'Recebida' : 'Pendente'}
+                              </span>
                               <button
                                 type="button"
                                 disabled={isReceived || isUpdatingOccurrenceKey === occurrenceKey}
@@ -1344,7 +1373,10 @@ export default function HomePage() {
                               {obligationItem.type === 'parcelada' && obligationItem.total_installments
                                 ? `, parcelada em ${obligationItem.total_installments}x`
                                 : ''}
-                              , bloco {obligationItem.block_type}) — {isPaid ? 'Paga' : 'Pendente'}
+                              , bloco {obligationItem.block_type}) —{' '}
+                              <span className={`status-pill ${isPaid ? 'status-success' : 'status-pending'}`}>
+                                {isPaid ? 'Paga' : 'Pendente'}
+                              </span>
                               <button
                                 type="button"
                                 disabled={isPaid || isUpdatingOccurrenceKey === occurrenceKey}
@@ -1384,7 +1416,7 @@ export default function HomePage() {
         ) : null}
         </section>
 
-        <section>
+        <section className="card">
         <h2>Cadastrar entrada</h2>
         <form onSubmit={handleCreateEntry}>
           <div>
@@ -1496,7 +1528,7 @@ export default function HomePage() {
         {entrySuccessMessage ? <p>{entrySuccessMessage}</p> : null}
         </section>
 
-        <section>
+        <section className="card">
         <h2>Cadastrar despesa</h2>
         <form onSubmit={handleCreateObligation}>
           <div>
