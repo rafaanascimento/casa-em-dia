@@ -95,8 +95,7 @@ const currencyFormatter = new Intl.NumberFormat('pt-BR', {
 
 const getMonthStart = (date: Date) => new Date(date.getFullYear(), date.getMonth(), 1);
 
-const addMonths = (date: Date, months: number) =>
-  new Date(date.getFullYear(), date.getMonth() + months, 1);
+const addMonths = (date: Date, months: number) => new Date(date.getFullYear(), date.getMonth() + months, 1);
 
 const isMonthInRange = (target: Date, startDate: string, endDate?: string | null) => {
   const startMonth = getMonthStart(new Date(startDate));
@@ -118,6 +117,30 @@ const monthDiff = (startDate: string, target: Date) => {
   return (target.getFullYear() - start.getFullYear()) * 12 + (target.getMonth() - start.getMonth());
 };
 
+const getMonthStatus = (balance: number) => {
+  if (balance > 0) {
+    return 'positivo';
+  }
+
+  if (balance < 0) {
+    return 'negativo';
+  }
+
+  return 'apertado';
+};
+
+const getBlockStatus = (balance: number) => {
+  if (balance > 0) {
+    return 'bloco saudável';
+  }
+
+  if (balance < 0) {
+    return 'bloco negativo';
+  }
+
+  return 'bloco apertado';
+};
+
 export default function HomePage() {
   const router = useRouter();
 
@@ -126,15 +149,12 @@ export default function HomePage() {
   const [isSavingEntry, setIsSavingEntry] = useState(false);
   const [isSavingObligation, setIsSavingObligation] = useState(false);
   const [isLoadingProjectionData, setIsLoadingProjectionData] = useState(false);
-
   const [userId, setUserId] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [familyId, setFamilyId] = useState('');
   const [familyName, setFamilyName] = useState('');
   const [hasFamilyMembership, setHasFamilyMembership] = useState(false);
-
   const [projectionViewMode, setProjectionViewMode] = useState<'monthly' | 'blocks'>('monthly');
-
   const [entryForm, setEntryForm] = useState<EntryFormState>(initialEntryForm);
   const [obligationForm, setObligationForm] = useState<ObligationFormState>(initialObligationForm);
   const [entries, setEntries] = useState<EntryRow[]>([]);
@@ -260,18 +280,13 @@ export default function HomePage() {
         } else if (obligation.type === 'parcelada') {
           const installments = obligation.total_installments ?? 0;
           const diff = monthDiff(obligation.start_date, currentMonth);
-
           shouldIncludeObligation =
             installments > 0 &&
             diff >= 0 &&
             diff < installments &&
             isMonthInRange(currentMonth, obligation.start_date, obligation.end_date);
         } else {
-          shouldIncludeObligation = isMonthInRange(
-            currentMonth,
-            obligation.start_date,
-            obligation.end_date
-          );
+          shouldIncludeObligation = isMonthInRange(currentMonth, obligation.start_date, obligation.end_date);
         }
 
         if (!shouldIncludeObligation) {
@@ -471,9 +486,9 @@ export default function HomePage() {
       <p>Você está autenticado e já possui vínculo com uma família.</p>
       {userEmail ? <p>Usuário: {userEmail}</p> : null}
 
-      <section>
+      <div>
+        <section>
         <h2>Projeção mensal básica</h2>
-
         <div>
           <button type="button" onClick={() => setProjectionViewMode('monthly')}>
             Visão do mês
@@ -536,9 +551,28 @@ export default function HomePage() {
             </tbody>
           </table>
         ) : null}
-      </section>
 
-      <section>
+        {!isLoadingProjectionData ? (
+          <section>
+            <h3>Resumos mensais</h3>
+            {projection.map((month) => (
+              <article key={`summary-${month.key}`}>
+                <h4>{month.label}</h4>
+                <p>Total de entradas previstas: {currencyFormatter.format(month.totalEntries)}</p>
+                <p>Total de despesas previstas: {currencyFormatter.format(month.totalObligations)}</p>
+                <p>Saldo previsto: {currencyFormatter.format(month.balance)}</p>
+                <p>Total do bloco 10: {currencyFormatter.format(month.block10.balance)}</p>
+                <p>Total do bloco 25: {currencyFormatter.format(month.block25.balance)}</p>
+                <p>Status do mês: {getMonthStatus(month.balance)}</p>
+                <p>Status bloco 10: {getBlockStatus(month.block10.balance)}</p>
+                <p>Status bloco 25: {getBlockStatus(month.block25.balance)}</p>
+              </article>
+            ))}
+          </section>
+        ) : null}
+        </section>
+
+        <section>
         <h2>Cadastrar entrada</h2>
         <form onSubmit={handleCreateEntry}>
           <div>
@@ -648,9 +682,9 @@ export default function HomePage() {
           </button>
         </form>
         {entrySuccessMessage ? <p>{entrySuccessMessage}</p> : null}
-      </section>
+        </section>
 
-      <section>
+        <section>
         <h2>Cadastrar despesa</h2>
         <form onSubmit={handleCreateObligation}>
           <div>
@@ -690,8 +724,7 @@ export default function HomePage() {
                 setObligationForm({
                   ...obligationForm,
                   type: event.target.value as ObligationFormState['type'],
-                  totalInstallments:
-                    event.target.value === 'parcelada' ? obligationForm.totalInstallments : ''
+                  totalInstallments: event.target.value === 'parcelada' ? obligationForm.totalInstallments : ''
                 })
               }
             >
@@ -753,9 +786,7 @@ export default function HomePage() {
               id="obligationEndDate"
               type="date"
               value={obligationForm.endDate}
-              onChange={(event) =>
-                setObligationForm({ ...obligationForm, endDate: event.target.value })
-              }
+              onChange={(event) => setObligationForm({ ...obligationForm, endDate: event.target.value })}
             />
           </div>
 
@@ -806,7 +837,8 @@ export default function HomePage() {
           </button>
         </form>
         {obligationSuccessMessage ? <p>{obligationSuccessMessage}</p> : null}
-      </section>
+        </section>
+      </div>
 
       <button type="button" onClick={handleLogout}>
         Sair
