@@ -508,7 +508,6 @@ export default function HomePage() {
   }
 
   return (
-    <main>
       <h1>Casa em Dia</h1>
       <p>Você está autenticado e já possui vínculo com uma família.</p>
       {userEmail ? <p>Usuário: {userEmail}</p> : null}
