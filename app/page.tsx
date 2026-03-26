@@ -254,6 +254,14 @@ const normalizeSourceType = (sourceType: string) => {
   return '';
 };
 
+const toDatabaseSourceType = (sourceType: 'entry' | 'obligation') => {
+  if (sourceType === 'entry') {
+    return 'entries';
+  }
+
+  return 'obligations';
+};
+
 const normalizeMonthKey = (monthKey: string) => {
   const normalizedValue = monthKey.trim();
   const matchedMonth = normalizedValue.match(MONTH_KEY_REGEX);
@@ -583,11 +591,32 @@ export default function HomePage() {
     const normalizedSourceType = normalizeSourceType(sourceType);
     const normalizedSourceId = sourceId.trim();
     const normalizedMonthKey = normalizeMonthKey(monthKey);
+    const sourceTypeForDatabase = toDatabaseSourceType(sourceType);
     const occurrenceKey = `${sourceType}-${sourceId}-${monthKey}`;
     setError('');
     setIsUpdatingOccurrenceKey(occurrenceKey);
 
+    if (!familyId) {
+      console.error('Falha ao atualizar status mensal: family_id ausente.', {
+        sourceType,
+        sourceId,
+        monthKey
+      });
+      setError('Não foi possível atualizar o status mensal: família não identificada.');
+      setIsUpdatingOccurrenceKey(null);
+      return;
+    }
+
     if (!normalizedSourceType || !normalizedSourceId || !normalizedMonthKey) {
+      console.error('Falha ao atualizar status mensal: parâmetros inválidos.', {
+        familyId,
+        sourceType,
+        sourceId,
+        monthKey,
+        normalizedSourceType,
+        normalizedSourceId,
+        normalizedMonthKey
+      });
       setError('Não foi possível atualizar o status mensal por inconsistência nos dados.');
       setIsUpdatingOccurrenceKey(null);
       return;
@@ -596,7 +625,7 @@ export default function HomePage() {
     const { error: upsertError } = await supabase.from('monthly_occurrences').upsert(
       {
         family_id: familyId,
-        source_type: normalizedSourceType,
+        source_type: sourceTypeForDatabase,
         source_id: normalizedSourceId,
         month_key: normalizedMonthKey,
         title,
@@ -611,7 +640,23 @@ export default function HomePage() {
     );
 
     if (upsertError) {
-      setError('Não foi possível atualizar o status mensal do lançamento.');
+      console.error('Erro ao persistir status mensal em monthly_occurrences.', {
+        code: upsertError.code,
+        message: upsertError.message,
+        details: upsertError.details,
+        hint: upsertError.hint,
+        payload: {
+          family_id: familyId,
+          source_type: sourceTypeForDatabase,
+          source_id: normalizedSourceId,
+          month_key: normalizedMonthKey,
+          title,
+          amount,
+          block_type: blockType,
+          status
+        }
+      });
+      setError(`Não foi possível atualizar o status mensal do lançamento: ${upsertError.message}`);
       setIsUpdatingOccurrenceKey(null);
       return;
     }
@@ -619,7 +664,7 @@ export default function HomePage() {
     setMonthlyOccurrences((previous) => {
       const updatedOccurrence: MonthlyOccurrenceRow = {
         family_id: familyId,
-        source_type: normalizedSourceType,
+        source_type: sourceTypeForDatabase,
         source_id: normalizedSourceId,
         month_key: normalizedMonthKey,
         title,
