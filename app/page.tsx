@@ -302,6 +302,7 @@ export default function HomePage() {
   const [isUpdatingEntry, setIsUpdatingEntry] = useState(false);
   const [isUpdatingObligation, setIsUpdatingObligation] = useState(false);
   const [isUpdatingOccurrenceKey, setIsUpdatingOccurrenceKey] = useState<string | null>(null);
+  const [expandedMonthKeys, setExpandedMonthKeys] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [entrySuccessMessage, setEntrySuccessMessage] = useState('');
   const [obligationSuccessMessage, setObligationSuccessMessage] = useState('');
@@ -976,6 +977,20 @@ export default function HomePage() {
     router.replace('/login');
   };
 
+  const handleMonthDetailsToggle = (monthKey: string, isOpen: boolean) => {
+    setExpandedMonthKeys((previous) => {
+      if (isOpen) {
+        if (previous.includes(monthKey)) {
+          return previous;
+        }
+
+        return [...previous, monthKey];
+      }
+
+      return previous.filter((key) => key !== monthKey);
+    });
+  };
+
   if (isCheckingSession) {
     return (
       <main>
@@ -1126,7 +1141,15 @@ export default function HomePage() {
                       <li>Sem mudanças relevantes para o próximo mês.</li>
                     )}
                   </ul>
-                  <details>
+                  <details
+                    open={expandedMonthKeys.includes(month.key)}
+                    onToggle={(event) =>
+                      handleMonthDetailsToggle(
+                        month.key,
+                        (event.currentTarget as HTMLDetailsElement).open
+                      )
+                    }
+                  >
                     <summary>Detalhamento do mês</summary>
 
                     <p>Entradas do mês:</p>
