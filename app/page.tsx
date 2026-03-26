@@ -104,7 +104,26 @@ type ProjectionMonth = {
   block25: BlockProjection;
 };
 
+type MonthPlannedVsActual = {
+  totalEntriesPlanned: number;
+  totalEntriesReceived: number;
+  totalEntriesPending: number;
+  totalObligationsPlanned: number;
+  totalObligationsPaid: number;
+  totalObligationsPending: number;
+  plannedBalance: number;
+  partialActualBalance: number;
+};
+
+type MonthRiskAnalysis = {
+  level: 'seguro' | 'atenção' | 'risco';
+  messages: string[];
+};
+
 const PROJECTION_MONTHS = 6;
+const MONTH_KEY_REGEX = /^(\d{4})-(\d{1,2})$/;
+const PROJECTION_VIEW_MODE_STORAGE_KEY = 'casa-em-dia:projection-view-mode';
+const EXPANDED_MONTH_KEYS_STORAGE_KEY = 'casa-em-dia:expanded-month-keys';
 
 const initialEntryForm: EntryFormState = {
   title: '',
@@ -235,19 +254,131 @@ const getMonthAlerts = (month: ProjectionMonth) => {
   return alerts;
 };
 
+const getCurrentMonthSituation = (partialActualBalance: number, plannedBalance: number) => {
+  if (partialActualBalance < 0) {
+    return {
+      level: 'negativo',
+      message: 'Mês negativo até agora'
+    };
+  }
+
+  if (partialActualBalance === 0) {
+    return {
+      level: 'risco',
+      message: 'Mês em risco'
+    };
+  }
+
+  if (plannedBalance > 0 && partialActualBalance <= plannedBalance * 0.2) {
+    return {
+      level: 'risco',
+      message: 'Mês em risco'
+    };
+  }
+
+  return {
+    level: 'positivo',
+    message: 'Mês positivo até agora'
+  };
+};
+
+const getExpectedComparison = (partialActualBalance: number, plannedBalance: number) => {
+  const difference = partialActualBalance - plannedBalance;
+  const threshold = Math.max(Math.abs(plannedBalance) * 0.1, 50);
+
+  if (difference > threshold) {
+    return {
+      level: 'acima',
+      message: 'O mês está mais leve que o planejado'
+    };
+  }
+
+  if (difference < -threshold) {
+    return {
+      level: 'abaixo',
+      message: 'Você já comprometeu grande parte do saldo'
+    };
+  }
+
+  return {
+    level: 'dentro',
+    message: 'Você está dentro do esperado'
+  };
+};
+
+const getBalanceTone = (balance: number) => {
+  if (balance > 0) {
+    return 'status-positive';
+  }
+
+  if (balance < 0) {
+    return 'status-negative';
+  }
+
+  return 'status-tight';
+};
+
+const getRiskTone = (riskLevel: MonthRiskAnalysis['level']) => {
+  if (riskLevel === 'risco') {
+    return 'status-negative';
+  }
+
+  if (riskLevel === 'atenção') {
+    return 'status-tight';
+  }
+
+  return 'status-positive';
+};
+
+const getRiskBadgeLabel = (riskLevel: MonthRiskAnalysis['level']) => {
+  if (riskLevel === 'risco') {
+    return 'Risco';
+  }
+
+  if (riskLevel === 'atenção') {
+    return 'Atenção';
+  }
+
+  return 'OK';
+};
+
 const normalizeSourceType = (sourceType: string) => {
-  if (sourceType === 'entries') {
+  const normalizedValue = sourceType.trim().toLowerCase();
+
+  if (normalizedValue === 'entries') {
     return 'entry';
   }
 
-  if (sourceType === 'obligations') {
+  if (normalizedValue === 'obligations') {
     return 'obligation';
   }
 
-  return sourceType;
+  if (normalizedValue === 'entry' || normalizedValue === 'obligation') {
+    return normalizedValue;
+  }
+
+  return '';
 };
 
-const normalizeMonthKey = (monthKey: string) => monthKey.slice(0, 7);
+const toDatabaseSourceType = (sourceType: 'entry' | 'obligation') => {
+  if (sourceType === 'entry') {
+    return 'entries';
+  }
+
+  return 'obligations';
+};
+
+const normalizeMonthKey = (monthKey: string) => {
+  const normalizedValue = monthKey.trim();
+  const matchedMonth = normalizedValue.match(MONTH_KEY_REGEX);
+
+  if (!matchedMonth) {
+    return '';
+  }
+
+  const [, year, month] = matchedMonth;
+  return `${year}-${month.padStart(2, '0')}`;
+};
 
 export default function HomePage() {
   const router = useRouter();
@@ -277,9 +408,58 @@ export default function HomePage() {
   const [isUpdatingEntry, setIsUpdatingEntry] = useState(false);
   const [isUpdatingObligation, setIsUpdatingObligation] = useState(false);
   const [isUpdatingOccurrenceKey, setIsUpdatingOccurrenceKey] = useState<string | null>(null);
+  const [expandedMonthKeys, setExpandedMonthKeys] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [entrySuccessMessage, setEntrySuccessMessage] = useState('');
   const [obligationSuccessMessage, setObligationSuccessMessage] = useState('');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const storedProjectionViewMode = window.localStorage.getItem(PROJECTION_VIEW_MODE_STORAGE_KEY);
+
+    if (storedProjectionViewMode === 'monthly' || storedProjectionViewMode === 'blocks') {
+      setProjectionViewMode(storedProjectionViewMode);
+    }
+
+    const storedExpandedMonthKeys = window.localStorage.getItem(EXPANDED_MONTH_KEYS_STORAGE_KEY);
+
+    if (!storedExpandedMonthKeys) {
+      return;
+    }
+
+    try {
+      const parsedExpandedMonthKeys = JSON.parse(storedExpandedMonthKeys);
+
+      if (Array.isArray(parsedExpandedMonthKeys)) {
+        const validMonthKeys = parsedExpandedMonthKeys.filter(
+          (monthKey): monthKey is string => typeof monthKey === 'string' && Boolean(normalizeMonthKey(monthKey))
+        );
+
+        setExpandedMonthKeys(validMonthKeys);
+      }
+    } catch (storageError) {
+      console.error('Não foi possível recuperar meses expandidos do armazenamento local.', storageError);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.localStorage.setItem(PROJECTION_VIEW_MODE_STORAGE_KEY, projectionViewMode);
+  }, [projectionViewMode]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.localStorage.setItem(EXPANDED_MONTH_KEYS_STORAGE_KEY, JSON.stringify(expandedMonthKeys));
+  }, [expandedMonthKeys]);
 
   const loadFinancialData = async (currentFamilyId: string) => {
     setIsLoadingProjectionData(true);
@@ -329,11 +509,14 @@ export default function HomePage() {
     setObligations((obligationsData ?? []) as ObligationRow[]);
     setEntryList((entriesListData ?? []) as EntryListRow[]);
     setObligationList((obligationsListData ?? []) as ObligationListRow[]);
-    const normalizedOccurrences = ((occurrencesData ?? []) as MonthlyOccurrenceRow[]).map((occurrence) => ({
-      ...occurrence,
-      source_type: normalizeSourceType(occurrence.source_type) as MonthlyOccurrenceRow['source_type'],
-      month_key: normalizeMonthKey(occurrence.month_key)
-    }));
+    const normalizedOccurrences = ((occurrencesData ?? []) as MonthlyOccurrenceRow[])
+      .map((occurrence) => ({
+        ...occurrence,
+        source_type: normalizeSourceType(occurrence.source_type) as MonthlyOccurrenceRow['source_type'],
+        month_key: normalizeMonthKey(occurrence.month_key),
+        source_id: occurrence.source_id.trim()
+      }))
+      .filter((occurrence) => occurrence.source_type && occurrence.month_key && occurrence.source_id);
 
     setMonthlyOccurrences(normalizedOccurrences);
     setIsLoadingProjectionData(false);
@@ -536,13 +719,130 @@ export default function HomePage() {
   }, [projection, entries, obligations]);
 
   const getOccurrence = (sourceType: 'entry' | 'obligation', sourceId: string, monthKey: string) =>
-    monthlyOccurrences.find(
-      (occurrence) =>
+    monthlyOccurrences.find((occurrence) => {
+      const normalizedSourceType = normalizeSourceType(occurrence.source_type);
+      const normalizedMonthKey = normalizeMonthKey(occurrence.month_key);
+
+      return (
         occurrence.family_id === familyId &&
-        normalizeSourceType(occurrence.source_type) === sourceType &&
+        normalizedSourceType === sourceType &&
         occurrence.source_id === sourceId &&
-        normalizeMonthKey(occurrence.month_key) === normalizeMonthKey(monthKey)
-    );
+        normalizedMonthKey === normalizeMonthKey(monthKey)
+      );
+    });
+
+  const getOccurrenceStatus = (sourceType: 'entry' | 'obligation', sourceId: string, monthKey: string) =>
+    getOccurrence(sourceType, sourceId, monthKey)?.status ?? 'pending';
+
+  const monthPlannedVsActualByKey = useMemo(() => {
+    const plannedVsActualMap = new Map<string, MonthPlannedVsActual>();
+
+    projection.forEach((month) => {
+      const monthDetails = monthDetailsByKey.get(month.key);
+      const monthEntries = monthDetails?.entries ?? [];
+      const monthObligations = monthDetails?.obligations ?? [];
+
+      const totalEntriesPlanned = monthEntries.reduce(
+        (total, entryItem) => total + Number(entryItem.amount),
+        0
+      );
+      const totalEntriesReceived = monthEntries.reduce((total, entryItem) => {
+        const currentStatus = getOccurrenceStatus('entry', entryItem.id, month.key);
+
+        if (currentStatus === 'received') {
+          return total + Number(entryItem.amount);
+        }
+
+        return total;
+      }, 0);
+      const totalEntriesPending = totalEntriesPlanned - totalEntriesReceived;
+
+      const totalObligationsPlanned = monthObligations.reduce(
+        (total, obligationItem) => total + Number(obligationItem.amount),
+        0
+      );
+      const totalObligationsPaid = monthObligations.reduce((total, obligationItem) => {
+        const currentStatus = getOccurrenceStatus('obligation', obligationItem.id, month.key);
+
+        if (currentStatus === 'paid') {
+          return total + Number(obligationItem.amount);
+        }
+
+        return total;
+      }, 0);
+      const totalObligationsPending = totalObligationsPlanned - totalObligationsPaid;
+
+      plannedVsActualMap.set(month.key, {
+        totalEntriesPlanned,
+        totalEntriesReceived,
+        totalEntriesPending,
+        totalObligationsPlanned,
+        totalObligationsPaid,
+        totalObligationsPending,
+        plannedBalance: month.balance,
+        partialActualBalance: totalEntriesReceived - totalObligationsPaid
+      });
+    });
+
+    return plannedVsActualMap;
+  }, [projection, monthDetailsByKey, monthlyOccurrences, familyId]);
+
+  const monthRiskByKey = useMemo(() => {
+    const riskMap = new Map<string, MonthRiskAnalysis>();
+
+    projection.forEach((month, index) => {
+      const previousMonth = projection[index - 1];
+      const messages: string[] = [];
+      let riskLevel: MonthRiskAnalysis['level'] = 'seguro';
+
+      if (month.balance < 0) {
+        riskLevel = 'risco';
+        messages.push('Risco de saldo negativo neste mês');
+      }
+
+      const nearZeroThreshold = Math.max(month.totalEntries * 0.1, 50);
+
+      if (Math.abs(month.balance) <= nearZeroThreshold) {
+        if (riskLevel !== 'risco') {
+          riskLevel = 'atenção';
+        }
+
+        messages.push('Seu orçamento está apertado');
+      }
+
+      if (month.totalEntries > 0 && month.totalObligations / month.totalEntries > 0.8) {
+        if (riskLevel !== 'risco') {
+          riskLevel = 'atenção';
+        }
+
+        messages.push('Nível de despesas elevado');
+      }
+
+      if (previousMonth && month.balance < previousMonth.balance) {
+        if (riskLevel === 'seguro') {
+          riskLevel = 'atenção';
+        }
+
+        messages.push('Tendência de piora nos próximos meses');
+      }
+
+      if (messages.length === 0) {
+        messages.push('Situação estável para este mês');
+      }
+
+      riskMap.set(month.key, {
+        level: riskLevel,
+        messages
+      });
+    });
+
+    return riskMap;
+  }, [projection]);
+
+  const currentMonthKey = useMemo(() => {
+    const currentDate = new Date();
+    return `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+  }, []);
 
   const handleSetOccurrenceStatus = async (
     sourceType: 'entry' | 'obligation',
@@ -553,16 +853,46 @@ export default function HomePage() {
     blockType: '10' | '25',
     status: 'received' | 'paid'
   ) => {
+    const normalizedSourceType = normalizeSourceType(sourceType);
+    const normalizedSourceId = sourceId.trim();
+    const normalizedMonthKey = normalizeMonthKey(monthKey);
+    const sourceTypeForDatabase = toDatabaseSourceType(sourceType);
     const occurrenceKey = `${sourceType}-${sourceId}-${monthKey}`;
     setError('');
     setIsUpdatingOccurrenceKey(occurrenceKey);
 
+    if (!familyId) {
+      console.error('Falha ao atualizar status mensal: family_id ausente.', {
+        sourceType,
+        sourceId,
+        monthKey
+      });
+      setError('Não foi possível atualizar o status mensal: família não identificada.');
+      setIsUpdatingOccurrenceKey(null);
+      return;
+    }
+
+    if (!normalizedSourceType || !normalizedSourceId || !normalizedMonthKey) {
+      console.error('Falha ao atualizar status mensal: parâmetros inválidos.', {
+        familyId,
+        sourceType,
+        sourceId,
+        monthKey,
+        normalizedSourceType,
+        normalizedSourceId,
+        normalizedMonthKey
+      });
+      setError('Não foi possível atualizar o status mensal por inconsistência nos dados.');
+      setIsUpdatingOccurrenceKey(null);
+      return;
+    }
+
     const { error: upsertError } = await supabase.from('monthly_occurrences').upsert(
       {
         family_id: familyId,
-        source_type: sourceType,
-        source_id: sourceId,
-        month_key: normalizeMonthKey(monthKey),
+        source_type: sourceTypeForDatabase,
+        source_id: normalizedSourceId,
+        month_key: normalizedMonthKey,
         title,
         amount,
         block_type: blockType,
@@ -575,17 +905,32 @@ export default function HomePage() {
     );
 
     if (upsertError) {
-      setError('Não foi possível atualizar o status mensal do lançamento.');
+      console.error('Erro ao persistir status mensal em monthly_occurrences.', {
+        code: upsertError.code,
+        message: upsertError.message,
+        details: upsertError.details,
+        hint: upsertError.hint,
+        payload: {
+          family_id: familyId,
+          source_type: sourceTypeForDatabase,
+          source_id: normalizedSourceId,
+          month_key: normalizedMonthKey,
+          title,
+          amount,
+          block_type: blockType,
+          status
+        }
+      });
+      setError(`Não foi possível atualizar o status mensal do lançamento: ${upsertError.message}`);
       setIsUpdatingOccurrenceKey(null);
       return;
     }
 
     setMonthlyOccurrences((previous) => {
-      const normalizedMonthKey = normalizeMonthKey(monthKey);
       const updatedOccurrence: MonthlyOccurrenceRow = {
         family_id: familyId,
-        source_type: sourceType,
-        source_id: sourceId,
+        source_type: sourceTypeForDatabase,
+        source_id: normalizedSourceId,
         month_key: normalizedMonthKey,
         title,
         amount,
@@ -599,7 +944,7 @@ export default function HomePage() {
           !(
             occurrence.family_id === familyId &&
             normalizeSourceType(occurrence.source_type) === sourceType &&
-            occurrence.source_id === sourceId &&
+            occurrence.source_id === normalizedSourceId &&
             normalizeMonthKey(occurrence.month_key) === normalizedMonthKey
           )
       );
@@ -896,10 +1241,24 @@ export default function HomePage() {
     router.replace('/login');
   };
 
+  const handleMonthDetailsToggle = (monthKey: string, isOpen: boolean) => {
+    setExpandedMonthKeys((previous) => {
+      if (isOpen) {
+        if (previous.includes(monthKey)) {
+          return previous;
+        }
+
+        return [...previous, monthKey];
+      }
+
+      return previous.filter((key) => key !== monthKey);
+    });
+  };
+
   if (isCheckingSession) {
     return (
-      <main>
-        <h1>Casa em Dia</h1>
+      <main className="app-shell">
+        <h1 className="app-title">Casa em Dia</h1>
         <p>Verificando sessão...</p>
       </main>
     );
@@ -907,8 +1266,8 @@ export default function HomePage() {
 
   if (!hasFamilyMembership) {
     return (
-      <main>
-        <h1>Casa em Dia</h1>
+      <main className="app-shell">
+        <h1 className="app-title">Casa em Dia</h1>
         <p>Vamos criar sua primeira família.</p>
 
         <form onSubmit={handleCreateFamily}>
@@ -934,15 +1293,17 @@ export default function HomePage() {
   }
 
   return (
-    <main>
-      <h1>Casa em Dia</h1>
-      <p>Você está autenticado e já possui vínculo com uma família.</p>
+    <main className="app-shell">
+      <header className="app-header card">
+        <h1 className="app-title">Casa em Dia</h1>
+        <p>Você está autenticado e já possui vínculo com uma família.</p>
+      </header>
       {userEmail ? <p>Usuário: {userEmail}</p> : null}
 
-      <div>
-        <section>
+      <div className="content-grid">
+        <section className="card">
         <h2>Projeção mensal básica</h2>
-        <div>
+        <div className="button-row">
           <button type="button" onClick={() => setProjectionViewMode('monthly')}>
             Visão do mês
           </button>
@@ -966,8 +1327,23 @@ export default function HomePage() {
             </thead>
             <tbody>
               {projection.map((month) => (
-                <tr key={month.key}>
-                  <td>{month.label}</td>
+                <tr
+                  key={month.key}
+                  className={`${month.key === currentMonthKey ? 'is-current-month' : ''} ${
+                    monthRiskByKey.get(month.key)?.level === 'risco'
+                      ? 'is-risk-month'
+                      : monthRiskByKey.get(month.key)?.level === 'atenção'
+                        ? 'is-warning-month'
+                        : 'is-safe-month'
+                  }`}
+                >
+                  <td>
+                    {month.label}
+                    {month.key === currentMonthKey ? <span className="badge-current">Atual</span> : null}
+                    <span className={`status-pill ${getRiskTone(monthRiskByKey.get(month.key)?.level ?? 'seguro')}`}>
+                      {getRiskBadgeLabel(monthRiskByKey.get(month.key)?.level ?? 'seguro')}
+                    </span>
+                  </td>
                   <td>{currencyFormatter.format(month.totalEntries)}</td>
                   <td>{currencyFormatter.format(month.totalObligations)}</td>
                   <td>{currencyFormatter.format(month.balance)}</td>
@@ -994,8 +1370,23 @@ export default function HomePage() {
             </thead>
             <tbody>
               {projection.map((month) => (
-                <tr key={month.key}>
-                  <td>{month.label}</td>
+                <tr
+                  key={month.key}
+                  className={`${month.key === currentMonthKey ? 'is-current-month' : ''} ${
+                    monthRiskByKey.get(month.key)?.level === 'risco'
+                      ? 'is-risk-month'
+                      : monthRiskByKey.get(month.key)?.level === 'atenção'
+                        ? 'is-warning-month'
+                        : 'is-safe-month'
+                  }`}
+                >
+                  <td>
+                    {month.label}
+                    {month.key === currentMonthKey ? <span className="badge-current">Atual</span> : null}
+                    <span className={`status-pill ${getRiskTone(monthRiskByKey.get(month.key)?.level ?? 'seguro')}`}>
+                      {getRiskBadgeLabel(monthRiskByKey.get(month.key)?.level ?? 'seguro')}
+                    </span>
+                  </td>
                   <td>{currencyFormatter.format(month.block10.entries)}</td>
                   <td>{currencyFormatter.format(month.block10.obligations)}</td>
                   <td>{currencyFormatter.format(month.block10.balance)}</td>
@@ -1016,18 +1407,79 @@ export default function HomePage() {
               const monthAlerts = getMonthAlerts(month);
               const nextMonthAlerts = nextMonthAlertsByKey.get(month.key) ?? [];
               const monthDetails = monthDetailsByKey.get(month.key);
+              const monthPlannedVsActual = monthPlannedVsActualByKey.get(month.key);
+              const monthRisk = monthRiskByKey.get(month.key);
+              const plannedBalance = monthPlannedVsActual?.plannedBalance ?? month.balance;
+              const partialActualBalance = monthPlannedVsActual?.partialActualBalance ?? 0;
+              const currentSituation = getCurrentMonthSituation(partialActualBalance, plannedBalance);
+              const expectedComparison = getExpectedComparison(partialActualBalance, plannedBalance);
 
               return (
-                <article key={`summary-${month.key}`}>
-                  <h4>{month.label}</h4>
+                <article
+                  key={`summary-${month.key}`}
+                  className={`month-summary ${
+                    monthRisk?.level === 'risco'
+                      ? 'month-summary-risk'
+                      : monthRisk?.level === 'atenção'
+                        ? 'month-summary-warning'
+                        : 'month-summary-safe'
+                  }`}
+                >
+                  <h4>
+                    {month.label}
+                    {month.key === currentMonthKey ? <span className="badge-current">Atual</span> : null}
+                    <span className={`status-pill ${getRiskTone(monthRisk?.level ?? 'seguro')}`}>
+                      {getRiskBadgeLabel(monthRisk?.level ?? 'seguro')}
+                    </span>
+                  </h4>
                   <p>Total de entradas previstas: {currencyFormatter.format(month.totalEntries)}</p>
                   <p>Total de despesas previstas: {currencyFormatter.format(month.totalObligations)}</p>
                   <p>Saldo previsto: {currencyFormatter.format(month.balance)}</p>
                   <p>Total do bloco 10: {currencyFormatter.format(month.block10.balance)}</p>
                   <p>Total do bloco 25: {currencyFormatter.format(month.block25.balance)}</p>
-                  <p>Status do mês: {getMonthStatus(month.balance)}</p>
-                  <p>Status bloco 10: {getBlockStatus(month.block10.balance)}</p>
-                  <p>Status bloco 25: {getBlockStatus(month.block25.balance)}</p>
+                  <p>
+                    Status do mês:{' '}
+                    <span className={`status-pill ${getBalanceTone(month.balance)}`}>{getMonthStatus(month.balance)}</span>
+                  </p>
+                  <p>
+                    Status bloco 10:{' '}
+                    <span className={`status-pill ${getBalanceTone(month.block10.balance)}`}>
+                      {getBlockStatus(month.block10.balance)}
+                    </span>
+                  </p>
+                  <p>
+                    Status bloco 25:{' '}
+                    <span className={`status-pill ${getBalanceTone(month.block25.balance)}`}>
+                      {getBlockStatus(month.block25.balance)}
+                    </span>
+                  </p>
+                  <p>Entradas previstas: {currencyFormatter.format(monthPlannedVsActual?.totalEntriesPlanned ?? 0)}</p>
+                  <p>Entradas recebidas: {currencyFormatter.format(monthPlannedVsActual?.totalEntriesReceived ?? 0)}</p>
+                  <p>Entradas pendentes: {currencyFormatter.format(monthPlannedVsActual?.totalEntriesPending ?? 0)}</p>
+                  <p>Despesas previstas: {currencyFormatter.format(monthPlannedVsActual?.totalObligationsPlanned ?? 0)}</p>
+                  <p>Despesas pagas: {currencyFormatter.format(monthPlannedVsActual?.totalObligationsPaid ?? 0)}</p>
+                  <p>Despesas pendentes: {currencyFormatter.format(monthPlannedVsActual?.totalObligationsPending ?? 0)}</p>
+                  <p>Saldo previsto: {currencyFormatter.format(monthPlannedVsActual?.plannedBalance ?? month.balance)}</p>
+                  <p>
+                    Saldo realizado parcial:{' '}
+                    {currencyFormatter.format(monthPlannedVsActual?.partialActualBalance ?? 0)}
+                  </p>
+                  <p>Leitura executiva:</p>
+                  <ul>
+                    <li>{currentSituation.message}</li>
+                    <li>{expectedComparison.message}</li>
+                  </ul>
+                  <p>
+                    Classificação de risco:{' '}
+                    <span className={`status-pill ${getRiskTone(monthRisk?.level ?? 'seguro')}`}>
+                      {monthRisk?.level ?? 'seguro'}
+                    </span>
+                  </p>
+                  <ul>
+                    {(monthRisk?.messages ?? ['Situação estável para este mês']).map((riskMessage) => (
+                      <li key={`${month.key}-risk-${riskMessage}`}>{riskMessage}</li>
+                    ))}
+                  </ul>
                   <p>Alertas automáticos básicos:</p>
                   <ul>
                     {monthAlerts.length > 0 ? (
@@ -1046,22 +1498,32 @@ export default function HomePage() {
                       <li>Sem mudanças relevantes para o próximo mês.</li>
                     )}
                   </ul>
-                  <details>
+                  <details
+                    open={expandedMonthKeys.includes(month.key)}
+                    onToggle={(event) =>
+                      handleMonthDetailsToggle(
+                        month.key,
+                        (event.currentTarget as HTMLDetailsElement).open
+                      )
+                    }
+                  >
                     <summary>Detalhamento do mês</summary>
 
                     <p>Entradas do mês:</p>
                     <ul>
                       {(monthDetails?.entries ?? []).length > 0 ? (
                         (monthDetails?.entries ?? []).map((entryItem) => {
-                          const occurrence = getOccurrence('entry', entryItem.id, month.key);
-                          const isReceived = occurrence?.status === 'received';
+                          const currentStatus = getOccurrenceStatus('entry', entryItem.id, month.key);
+                          const isReceived = currentStatus === 'received';
                           const occurrenceKey = `entry-${entryItem.id}-${month.key}`;
 
                           return (
                             <li key={`${month.key}-entry-${entryItem.id}`}>
                               {entryItem.title} — {currencyFormatter.format(Number(entryItem.amount))} (
                               {entryItem.recurrence_type}, bloco {entryItem.block_type}) —{' '}
-                              {isReceived ? 'Recebida' : 'Pendente'}
+                              <span className={`status-pill ${isReceived ? 'status-success' : 'status-pending'}`}>
+                                {isReceived ? 'Recebida' : 'Pendente'}
+                              </span>
                               <button
                                 type="button"
                                 disabled={isReceived || isUpdatingOccurrenceKey === occurrenceKey}
@@ -1093,8 +1555,8 @@ export default function HomePage() {
                     <ul>
                       {(monthDetails?.obligations ?? []).length > 0 ? (
                         (monthDetails?.obligations ?? []).map((obligationItem) => {
-                          const occurrence = getOccurrence('obligation', obligationItem.id, month.key);
-                          const isPaid = occurrence?.status === 'paid';
+                          const currentStatus = getOccurrenceStatus('obligation', obligationItem.id, month.key);
+                          const isPaid = currentStatus === 'paid';
                           const occurrenceKey = `obligation-${obligationItem.id}-${month.key}`;
 
                           return (
@@ -1104,7 +1566,10 @@ export default function HomePage() {
                               {obligationItem.type === 'parcelada' && obligationItem.total_installments
                                 ? `, parcelada em ${obligationItem.total_installments}x`
                                 : ''}
-                              , bloco {obligationItem.block_type}) — {isPaid ? 'Paga' : 'Pendente'}
+                              , bloco {obligationItem.block_type}) —{' '}
+                              <span className={`status-pill ${isPaid ? 'status-success' : 'status-pending'}`}>
+                                {isPaid ? 'Paga' : 'Pendente'}
+                              </span>
                               <button
                                 type="button"
                                 disabled={isPaid || isUpdatingOccurrenceKey === occurrenceKey}
@@ -1144,7 +1609,7 @@ export default function HomePage() {
         ) : null}
         </section>
 
-        <section>
+        <section className="card">
         <h2>Cadastrar entrada</h2>
         <form onSubmit={handleCreateEntry}>
           <div>
@@ -1256,7 +1721,7 @@ export default function HomePage() {
         {entrySuccessMessage ? <p>{entrySuccessMessage}</p> : null}
         </section>
 
-        <section>
+        <section className="card">
         <h2>Cadastrar despesa</h2>
         <form onSubmit={handleCreateObligation}>
           <div>
