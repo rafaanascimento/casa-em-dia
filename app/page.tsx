@@ -33,6 +33,7 @@ type EntryRow = {
   recurrence_type: 'monthly' | 'one_time';
   start_date: string;
   end_date: string | null;
+  block_type: '10' | '25';
 };
 
 type ObligationRow = {
@@ -42,6 +43,13 @@ type ObligationRow = {
   total_installments: number | null;
   start_date: string;
   end_date: string | null;
+  block_type: '10' | '25';
+};
+
+type BlockProjection = {
+  entries: number;
+  obligations: number;
+  balance: number;
 };
 
 type ProjectionMonth = {
@@ -50,6 +58,8 @@ type ProjectionMonth = {
   totalEntries: number;
   totalObligations: number;
   balance: number;
+  block10: BlockProjection;
+  block25: BlockProjection;
 };
 
 const PROJECTION_MONTHS = 6;
@@ -85,7 +95,8 @@ const currencyFormatter = new Intl.NumberFormat('pt-BR', {
 
 const getMonthStart = (date: Date) => new Date(date.getFullYear(), date.getMonth(), 1);
 
-const addMonths = (date: Date, months: number) => new Date(date.getFullYear(), date.getMonth() + months, 1);
+const addMonths = (date: Date, months: number) =>
+  new Date(date.getFullYear(), date.getMonth() + months, 1);
 
 const isMonthInRange = (target: Date, startDate: string, endDate?: string | null) => {
   const startMonth = getMonthStart(new Date(startDate));
@@ -109,16 +120,21 @@ const monthDiff = (startDate: string, target: Date) => {
 
 export default function HomePage() {
   const router = useRouter();
+
   const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [isCreatingFamily, setIsCreatingFamily] = useState(false);
   const [isSavingEntry, setIsSavingEntry] = useState(false);
   const [isSavingObligation, setIsSavingObligation] = useState(false);
   const [isLoadingProjectionData, setIsLoadingProjectionData] = useState(false);
+
   const [userId, setUserId] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [familyId, setFamilyId] = useState('');
   const [familyName, setFamilyName] = useState('');
   const [hasFamilyMembership, setHasFamilyMembership] = useState(false);
+
+  const [projectionViewMode, setProjectionViewMode] = useState<'monthly' | 'blocks'>('monthly');
+
   const [entryForm, setEntryForm] = useState<EntryFormState>(initialEntryForm);
   const [obligationForm, setObligationForm] = useState<ObligationFormState>(initialObligationForm);
   const [entries, setEntries] = useState<EntryRow[]>([]);
@@ -134,12 +150,12 @@ export default function HomePage() {
       await Promise.all([
         supabase
           .from('entries')
-          .select('amount, recurrence_type, start_date, end_date')
+          .select('amount, recurrence_type, start_date, end_date, block_type')
           .eq('family_id', currentFamilyId)
           .eq('is_active', true),
         supabase
           .from('obligations')
-          .select('amount, type, recurrence_type, total_installments, start_date, end_date')
+          .select('amount, type, recurrence_type, total_installments, start_date, end_date, block_type')
           .eq('family_id', currentFamilyId)
           .eq('is_active', true)
       ]);
@@ -209,54 +225,85 @@ export default function HomePage() {
         year: 'numeric'
       });
 
-      const totalEntries = entries.reduce((sum, entry) => {
-        if (entry.recurrence_type === 'one_time') {
-          const diff = monthDiff(entry.start_date, currentMonth);
-          return diff === 0 ? sum + Number(entry.amount) : sum;
+      let totalEntries = 0;
+      let totalObligations = 0;
+      let block10Entries = 0;
+      let block10Obligations = 0;
+      let block25Entries = 0;
+      let block25Obligations = 0;
+
+      entries.forEach((entry) => {
+        const shouldIncludeEntry =
+          entry.recurrence_type === 'one_time'
+            ? monthDiff(entry.start_date, currentMonth) === 0
+            : isMonthInRange(currentMonth, entry.start_date, entry.end_date);
+
+        if (!shouldIncludeEntry) {
+          return;
         }
 
-        if (isMonthInRange(currentMonth, entry.start_date, entry.end_date)) {
-          return sum + Number(entry.amount);
+        const amount = Number(entry.amount);
+        totalEntries += amount;
+
+        if (entry.block_type === '10') {
+          block10Entries += amount;
+        } else {
+          block25Entries += amount;
         }
+      });
 
-        return sum;
-      }, 0);
+      obligations.forEach((obligation) => {
+        let shouldIncludeObligation = false;
 
-      const totalObligations = obligations.reduce((sum, obligation) => {
         if (obligation.type === 'unica') {
+          shouldIncludeObligation = monthDiff(obligation.start_date, currentMonth) === 0;
+        } else if (obligation.type === 'parcelada') {
+          const installments = obligation.total_installments ?? 0;
           const diff = monthDiff(obligation.start_date, currentMonth);
-          return diff === 0 ? sum + Number(obligation.amount) : sum;
+
+          shouldIncludeObligation =
+            installments > 0 &&
+            diff >= 0 &&
+            diff < installments &&
+            isMonthInRange(currentMonth, obligation.start_date, obligation.end_date);
+        } else {
+          shouldIncludeObligation = isMonthInRange(
+            currentMonth,
+            obligation.start_date,
+            obligation.end_date
+          );
         }
 
-        if (obligation.type === 'parcelada') {
-          if (!obligation.total_installments || obligation.total_installments < 1) {
-            return sum;
-          }
-
-          const diff = monthDiff(obligation.start_date, currentMonth);
-          const inInstallmentWindow = diff >= 0 && diff < obligation.total_installments;
-          const inDateRange = isMonthInRange(currentMonth, obligation.start_date, obligation.end_date);
-
-          if (inInstallmentWindow && inDateRange) {
-            return sum + Number(obligation.amount);
-          }
-
-          return sum;
+        if (!shouldIncludeObligation) {
+          return;
         }
 
-        if (isMonthInRange(currentMonth, obligation.start_date, obligation.end_date)) {
-          return sum + Number(obligation.amount);
-        }
+        const amount = Number(obligation.amount);
+        totalObligations += amount;
 
-        return sum;
-      }, 0);
+        if (obligation.block_type === '10') {
+          block10Obligations += amount;
+        } else {
+          block25Obligations += amount;
+        }
+      });
 
       return {
         key: `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`,
         label: monthLabel,
         totalEntries,
         totalObligations,
-        balance: totalEntries - totalObligations
+        balance: totalEntries - totalObligations,
+        block10: {
+          entries: block10Entries,
+          obligations: block10Obligations,
+          balance: block10Entries - block10Obligations
+        },
+        block25: {
+          entries: block25Entries,
+          obligations: block25Obligations,
+          balance: block25Entries - block25Obligations
+        }
       };
     });
   }, [entries, obligations]);
@@ -426,9 +473,19 @@ export default function HomePage() {
 
       <section>
         <h2>Projeção mensal básica</h2>
+
+        <div>
+          <button type="button" onClick={() => setProjectionViewMode('monthly')}>
+            Visão do mês
+          </button>
+          <button type="button" onClick={() => setProjectionViewMode('blocks')}>
+            Visão por blocos
+          </button>
+        </div>
+
         {isLoadingProjectionData ? <p>Carregando projeção...</p> : null}
 
-        {!isLoadingProjectionData ? (
+        {!isLoadingProjectionData && projectionViewMode === 'monthly' ? (
           <table>
             <thead>
               <tr>
@@ -445,6 +502,35 @@ export default function HomePage() {
                   <td>{currencyFormatter.format(month.totalEntries)}</td>
                   <td>{currencyFormatter.format(month.totalObligations)}</td>
                   <td>{currencyFormatter.format(month.balance)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : null}
+
+        {!isLoadingProjectionData && projectionViewMode === 'blocks' ? (
+          <table>
+            <thead>
+              <tr>
+                <th>Mês</th>
+                <th>Entradas bloco 10</th>
+                <th>Despesas bloco 10</th>
+                <th>Saldo bloco 10</th>
+                <th>Entradas bloco 25</th>
+                <th>Despesas bloco 25</th>
+                <th>Saldo bloco 25</th>
+              </tr>
+            </thead>
+            <tbody>
+              {projection.map((month) => (
+                <tr key={month.key}>
+                  <td>{month.label}</td>
+                  <td>{currencyFormatter.format(month.block10.entries)}</td>
+                  <td>{currencyFormatter.format(month.block10.obligations)}</td>
+                  <td>{currencyFormatter.format(month.block10.balance)}</td>
+                  <td>{currencyFormatter.format(month.block25.entries)}</td>
+                  <td>{currencyFormatter.format(month.block25.obligations)}</td>
+                  <td>{currencyFormatter.format(month.block25.balance)}</td>
                 </tr>
               ))}
             </tbody>
@@ -604,7 +690,8 @@ export default function HomePage() {
                 setObligationForm({
                   ...obligationForm,
                   type: event.target.value as ObligationFormState['type'],
-                  totalInstallments: event.target.value === 'parcelada' ? obligationForm.totalInstallments : ''
+                  totalInstallments:
+                    event.target.value === 'parcelada' ? obligationForm.totalInstallments : ''
                 })
               }
             >
@@ -666,7 +753,9 @@ export default function HomePage() {
               id="obligationEndDate"
               type="date"
               value={obligationForm.endDate}
-              onChange={(event) => setObligationForm({ ...obligationForm, endDate: event.target.value })}
+              onChange={(event) =>
+                setObligationForm({ ...obligationForm, endDate: event.target.value })
+              }
             />
           </div>
 
@@ -722,6 +811,7 @@ export default function HomePage() {
       <button type="button" onClick={handleLogout}>
         Sair
       </button>
+
       {error ? <p>{error}</p> : null}
     </main>
   );
