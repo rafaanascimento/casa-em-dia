@@ -672,8 +672,7 @@ export default function HomePage() {
     await loadFinancialData(familyId);
   };
 
-=======
->>>>>>> main
+
   const handleLogout = async () => {
     setError('');
 
@@ -1253,12 +1252,11 @@ export default function HomePage() {
                     <button type="button" onClick={() => handleStartEditEntry(entryItem)}>
                       Editar
                     </button>
-<<<<<<< codex/implement-initial-family-context-for-casa-em-dia-ing0op
+
                     <button type="button" onClick={() => handleDeleteEntry(entryItem.id)}>
                       Excluir
                     </button>
-=======
->>>>>>> main
+
                   </td>
                 </tr>
               ))}
@@ -1472,12 +1470,11 @@ export default function HomePage() {
                     <button type="button" onClick={() => handleStartEditObligation(obligationItem)}>
                       Editar
                     </button>
-<<<<<<< codex/implement-initial-family-context-for-casa-em-dia-ing0op
+
                     <button type="button" onClick={() => handleDeleteObligation(obligationItem.id)}>
                       Excluir
                     </button>
-=======
->>>>>>> main
+
                   </td>
                 </tr>
               ))}
