@@ -615,7 +615,7 @@ export default function HomePage() {
     await loadFinancialData(familyId);
   };
 
-<<<<<<< codex/implement-initial-family-context-for-casa-em-dia-ing0op
+
   const handleDeleteEntry = async (entryId: string) => {
     const shouldDelete = window.confirm('Tem certeza que deseja excluir esta entrada?');
 
