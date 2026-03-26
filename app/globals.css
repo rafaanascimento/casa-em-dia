@@ -125,6 +125,26 @@ li {
   margin-bottom: 0.35rem;
 }
 
+.month-summary {
+  border: 1px solid #e5e7eb;
+  border-left-width: 5px;
+  border-radius: 10px;
+  padding: 0.85rem;
+  margin-bottom: 0.85rem;
+}
+
+.month-summary-risk {
+  border-left-color: #dc2626;
+}
+
+.month-summary-warning {
+  border-left-color: #d97706;
+}
+
+.month-summary-safe {
+  border-left-color: #16a34a;
+}
+
 .status-pill {
   display: inline-flex;
   align-items: center;
@@ -133,6 +153,18 @@ li {
   font-size: 0.8rem;
   font-weight: 700;
   margin-left: 0.2rem;
+}
+
+.badge-current {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.35rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: #dbeafe;
+  color: #1d4ed8;
 }
 
 .status-positive,
@@ -150,6 +182,22 @@ li {
 .status-pending {
   background: #fef3c7;
   color: #92400e;
+}
+
+tr.is-current-month td:first-child {
+  border-left: 4px solid #1d4ed8;
+}
+
+tr.is-risk-month {
+  background: #fef2f2;
+}
+
+tr.is-warning-month {
+  background: #fffbeb;
+}
+
+tr.is-safe-month {
+  background: #f9fafb;
 }
 
 @media (max-width: 900px) {

@@ -330,6 +330,18 @@ const getRiskTone = (riskLevel: MonthRiskAnalysis['level']) => {
   return 'status-positive';
 };
 
+const getRiskBadgeLabel = (riskLevel: MonthRiskAnalysis['level']) => {
+  if (riskLevel === 'risco') {
+    return 'Risco';
+  }
+
+  if (riskLevel === 'atenção') {
+    return 'Atenção';
+  }
+
+  return 'OK';
+};
+
 const normalizeSourceType = (sourceType: string) => {
   const normalizedValue = sourceType.trim().toLowerCase();
 
@@ -827,6 +839,11 @@ export default function HomePage() {
     return riskMap;
   }, [projection]);
 
+  const currentMonthKey = useMemo(() => {
+    const currentDate = new Date();
+    return `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+  }, []);
+
   const handleSetOccurrenceStatus = async (
     sourceType: 'entry' | 'obligation',
     sourceId: string,
@@ -1310,8 +1327,23 @@ export default function HomePage() {
             </thead>
             <tbody>
               {projection.map((month) => (
-                <tr key={month.key}>
-                  <td>{month.label}</td>
+                <tr
+                  key={month.key}
+                  className={`${month.key === currentMonthKey ? 'is-current-month' : ''} ${
+                    monthRiskByKey.get(month.key)?.level === 'risco'
+                      ? 'is-risk-month'
+                      : monthRiskByKey.get(month.key)?.level === 'atenção'
+                        ? 'is-warning-month'
+                        : 'is-safe-month'
+                  }`}
+                >
+                  <td>
+                    {month.label}
+                    {month.key === currentMonthKey ? <span className="badge-current">Atual</span> : null}
+                    <span className={`status-pill ${getRiskTone(monthRiskByKey.get(month.key)?.level ?? 'seguro')}`}>
+                      {getRiskBadgeLabel(monthRiskByKey.get(month.key)?.level ?? 'seguro')}
+                    </span>
+                  </td>
                   <td>{currencyFormatter.format(month.totalEntries)}</td>
                   <td>{currencyFormatter.format(month.totalObligations)}</td>
                   <td>{currencyFormatter.format(month.balance)}</td>
@@ -1338,8 +1370,23 @@ export default function HomePage() {
             </thead>
             <tbody>
               {projection.map((month) => (
-                <tr key={month.key}>
-                  <td>{month.label}</td>
+                <tr
+                  key={month.key}
+                  className={`${month.key === currentMonthKey ? 'is-current-month' : ''} ${
+                    monthRiskByKey.get(month.key)?.level === 'risco'
+                      ? 'is-risk-month'
+                      : monthRiskByKey.get(month.key)?.level === 'atenção'
+                        ? 'is-warning-month'
+                        : 'is-safe-month'
+                  }`}
+                >
+                  <td>
+                    {month.label}
+                    {month.key === currentMonthKey ? <span className="badge-current">Atual</span> : null}
+                    <span className={`status-pill ${getRiskTone(monthRiskByKey.get(month.key)?.level ?? 'seguro')}`}>
+                      {getRiskBadgeLabel(monthRiskByKey.get(month.key)?.level ?? 'seguro')}
+                    </span>
+                  </td>
                   <td>{currencyFormatter.format(month.block10.entries)}</td>
                   <td>{currencyFormatter.format(month.block10.obligations)}</td>
                   <td>{currencyFormatter.format(month.block10.balance)}</td>
@@ -1368,8 +1415,23 @@ export default function HomePage() {
               const expectedComparison = getExpectedComparison(partialActualBalance, plannedBalance);
 
               return (
-                <article key={`summary-${month.key}`}>
-                  <h4>{month.label}</h4>
+                <article
+                  key={`summary-${month.key}`}
+                  className={`month-summary ${
+                    monthRisk?.level === 'risco'
+                      ? 'month-summary-risk'
+                      : monthRisk?.level === 'atenção'
+                        ? 'month-summary-warning'
+                        : 'month-summary-safe'
+                  }`}
+                >
+                  <h4>
+                    {month.label}
+                    {month.key === currentMonthKey ? <span className="badge-current">Atual</span> : null}
+                    <span className={`status-pill ${getRiskTone(monthRisk?.level ?? 'seguro')}`}>
+                      {getRiskBadgeLabel(monthRisk?.level ?? 'seguro')}
+                    </span>
+                  </h4>
                   <p>Total de entradas previstas: {currencyFormatter.format(month.totalEntries)}</p>
                   <p>Total de despesas previstas: {currencyFormatter.format(month.totalObligations)}</p>
                   <p>Saldo previsto: {currencyFormatter.format(month.balance)}</p>
