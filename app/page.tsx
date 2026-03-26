@@ -33,9 +33,7 @@ type EntryRow = {
   recurrence_type: 'monthly' | 'one_time';
   start_date: string;
   end_date: string | null;
-
   block_type: '10' | '25';
-
 };
 
 type ObligationRow = {
@@ -45,7 +43,6 @@ type ObligationRow = {
   total_installments: number | null;
   start_date: string;
   end_date: string | null;
-
   block_type: '10' | '25';
 };
 
@@ -53,7 +50,6 @@ type BlockProjection = {
   entries: number;
   obligations: number;
   balance: number;
-
 };
 
 type ProjectionMonth = {
@@ -62,10 +58,8 @@ type ProjectionMonth = {
   totalEntries: number;
   totalObligations: number;
   balance: number;
-
   block10: BlockProjection;
   block25: BlockProjection;
-
 };
 
 const PROJECTION_MONTHS = 6;
@@ -101,7 +95,8 @@ const currencyFormatter = new Intl.NumberFormat('pt-BR', {
 
 const getMonthStart = (date: Date) => new Date(date.getFullYear(), date.getMonth(), 1);
 
-const addMonths = (date: Date, months: number) => new Date(date.getFullYear(), date.getMonth() + months, 1);
+const addMonths = (date: Date, months: number) =>
+  new Date(date.getFullYear(), date.getMonth() + months, 1);
 
 const isMonthInRange = (target: Date, startDate: string, endDate?: string | null) => {
   const startMonth = getMonthStart(new Date(startDate));
@@ -125,11 +120,13 @@ const monthDiff = (startDate: string, target: Date) => {
 
 export default function HomePage() {
   const router = useRouter();
+
   const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [isCreatingFamily, setIsCreatingFamily] = useState(false);
   const [isSavingEntry, setIsSavingEntry] = useState(false);
   const [isSavingObligation, setIsSavingObligation] = useState(false);
   const [isLoadingProjectionData, setIsLoadingProjectionData] = useState(false);
+
   const [userId, setUserId] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [familyId, setFamilyId] = useState('');
@@ -153,20 +150,12 @@ export default function HomePage() {
       await Promise.all([
         supabase
           .from('entries')
-
           .select('amount, recurrence_type, start_date, end_date, block_type')
-
-          .select('amount, recurrence_type, start_date, end_date')
-
           .eq('family_id', currentFamilyId)
           .eq('is_active', true),
         supabase
           .from('obligations')
-
           .select('amount, type, recurrence_type, total_installments, start_date, end_date, block_type')
-
-          .select('amount, type, recurrence_type, total_installments, start_date, end_date')
-
           .eq('family_id', currentFamilyId)
           .eq('is_active', true)
       ]);
@@ -236,7 +225,6 @@ export default function HomePage() {
         year: 'numeric'
       });
 
-
       let totalEntries = 0;
       let totalObligations = 0;
       let block10Entries = 0;
@@ -272,13 +260,18 @@ export default function HomePage() {
         } else if (obligation.type === 'parcelada') {
           const installments = obligation.total_installments ?? 0;
           const diff = monthDiff(obligation.start_date, currentMonth);
+
           shouldIncludeObligation =
             installments > 0 &&
             diff >= 0 &&
             diff < installments &&
             isMonthInRange(currentMonth, obligation.start_date, obligation.end_date);
         } else {
-          shouldIncludeObligation = isMonthInRange(currentMonth, obligation.start_date, obligation.end_date);
+          shouldIncludeObligation = isMonthInRange(
+            currentMonth,
+            obligation.start_date,
+            obligation.end_date
+          );
         }
 
         if (!shouldIncludeObligation) {
@@ -295,55 +288,11 @@ export default function HomePage() {
         }
       });
 
-      const totalEntries = entries.reduce((sum, entry) => {
-        if (entry.recurrence_type === 'one_time') {
-          const diff = monthDiff(entry.start_date, currentMonth);
-          return diff === 0 ? sum + Number(entry.amount) : sum;
-        }
-
-        if (isMonthInRange(currentMonth, entry.start_date, entry.end_date)) {
-          return sum + Number(entry.amount);
-        }
-
-        return sum;
-      }, 0);
-
-      const totalObligations = obligations.reduce((sum, obligation) => {
-        if (obligation.type === 'unica') {
-          const diff = monthDiff(obligation.start_date, currentMonth);
-          return diff === 0 ? sum + Number(obligation.amount) : sum;
-        }
-
-        if (obligation.type === 'parcelada') {
-          if (!obligation.total_installments || obligation.total_installments < 1) {
-            return sum;
-          }
-
-          const diff = monthDiff(obligation.start_date, currentMonth);
-          const inInstallmentWindow = diff >= 0 && diff < obligation.total_installments;
-          const inDateRange = isMonthInRange(currentMonth, obligation.start_date, obligation.end_date);
-
-          if (inInstallmentWindow && inDateRange) {
-            return sum + Number(obligation.amount);
-          }
-
-          return sum;
-        }
-
-        if (isMonthInRange(currentMonth, obligation.start_date, obligation.end_date)) {
-          return sum + Number(obligation.amount);
-        }
-
-        return sum;
-      }, 0);
-
-
       return {
         key: `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`,
         label: monthLabel,
         totalEntries,
         totalObligations,
-
         balance: totalEntries - totalObligations,
         block10: {
           entries: block10Entries,
@@ -355,9 +304,6 @@ export default function HomePage() {
           obligations: block25Obligations,
           balance: block25Entries - block25Obligations
         }
-
-        balance: totalEntries - totalObligations
-
       };
     });
   }, [entries, obligations]);
@@ -540,11 +486,6 @@ export default function HomePage() {
         {isLoadingProjectionData ? <p>Carregando projeção...</p> : null}
 
         {!isLoadingProjectionData && projectionViewMode === 'monthly' ? (
-
-        {isLoadingProjectionData ? <p>Carregando projeção...</p> : null}
-
-        {!isLoadingProjectionData ? (
-
           <table>
             <thead>
               <tr>
@@ -595,7 +536,6 @@ export default function HomePage() {
             </tbody>
           </table>
         ) : null}
-
       </section>
 
       <section>
@@ -750,7 +690,8 @@ export default function HomePage() {
                 setObligationForm({
                   ...obligationForm,
                   type: event.target.value as ObligationFormState['type'],
-                  totalInstallments: event.target.value === 'parcelada' ? obligationForm.totalInstallments : ''
+                  totalInstallments:
+                    event.target.value === 'parcelada' ? obligationForm.totalInstallments : ''
                 })
               }
             >
@@ -812,7 +753,9 @@ export default function HomePage() {
               id="obligationEndDate"
               type="date"
               value={obligationForm.endDate}
-              onChange={(event) => setObligationForm({ ...obligationForm, endDate: event.target.value })}
+              onChange={(event) =>
+                setObligationForm({ ...obligationForm, endDate: event.target.value })
+              }
             />
           </div>
 
@@ -868,6 +811,7 @@ export default function HomePage() {
       <button type="button" onClick={handleLogout}>
         Sair
       </button>
+
       {error ? <p>{error}</p> : null}
     </main>
   );
