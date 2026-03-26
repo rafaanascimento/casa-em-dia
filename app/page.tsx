@@ -1228,13 +1228,10 @@ export default function HomePage() {
               const nextMonthAlerts = nextMonthAlertsByKey.get(month.key) ?? [];
               const monthDetails = monthDetailsByKey.get(month.key);
               const monthPlannedVsActual = monthPlannedVsActualByKey.get(month.key);
-<<<<<<< codex/fix-monthly-status-synchronization-eif6lj
               const plannedBalance = monthPlannedVsActual?.plannedBalance ?? month.balance;
               const partialActualBalance = monthPlannedVsActual?.partialActualBalance ?? 0;
               const currentSituation = getCurrentMonthSituation(partialActualBalance, plannedBalance);
               const expectedComparison = getExpectedComparison(partialActualBalance, plannedBalance);
-=======
->>>>>>> main
 
               return (
                 <article key={`summary-${month.key}`}>
@@ -1258,14 +1255,11 @@ export default function HomePage() {
                     Saldo realizado parcial:{' '}
                     {currencyFormatter.format(monthPlannedVsActual?.partialActualBalance ?? 0)}
                   </p>
-<<<<<<< codex/fix-monthly-status-synchronization-eif6lj
                   <p>Leitura executiva:</p>
                   <ul>
                     <li>{currentSituation.message}</li>
                     <li>{expectedComparison.message}</li>
                   </ul>
-=======
->>>>>>> main
                   <p>Alertas automáticos básicos:</p>
                   <ul>
                     {monthAlerts.length > 0 ? (
