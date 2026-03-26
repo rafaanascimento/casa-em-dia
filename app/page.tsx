@@ -104,6 +104,17 @@ type ProjectionMonth = {
   block25: BlockProjection;
 };
 
+type MonthPlannedVsActual = {
+  totalEntriesPlanned: number;
+  totalEntriesReceived: number;
+  totalEntriesPending: number;
+  totalObligationsPlanned: number;
+  totalObligationsPaid: number;
+  totalObligationsPending: number;
+  plannedBalance: number;
+  partialActualBalance: number;
+};
+
 const PROJECTION_MONTHS = 6;
 const MONTH_KEY_REGEX = /^(\d{4})-(\d{1,2})$/;
 
@@ -579,6 +590,59 @@ export default function HomePage() {
 
   const getOccurrenceStatus = (sourceType: 'entry' | 'obligation', sourceId: string, monthKey: string) =>
     getOccurrence(sourceType, sourceId, monthKey)?.status ?? 'pending';
+
+  const monthPlannedVsActualByKey = useMemo(() => {
+    const plannedVsActualMap = new Map<string, MonthPlannedVsActual>();
+
+    projection.forEach((month) => {
+      const monthDetails = monthDetailsByKey.get(month.key);
+      const monthEntries = monthDetails?.entries ?? [];
+      const monthObligations = monthDetails?.obligations ?? [];
+
+      const totalEntriesPlanned = monthEntries.reduce(
+        (total, entryItem) => total + Number(entryItem.amount),
+        0
+      );
+      const totalEntriesReceived = monthEntries.reduce((total, entryItem) => {
+        const currentStatus = getOccurrenceStatus('entry', entryItem.id, month.key);
+
+        if (currentStatus === 'received') {
+          return total + Number(entryItem.amount);
+        }
+
+        return total;
+      }, 0);
+      const totalEntriesPending = totalEntriesPlanned - totalEntriesReceived;
+
+      const totalObligationsPlanned = monthObligations.reduce(
+        (total, obligationItem) => total + Number(obligationItem.amount),
+        0
+      );
+      const totalObligationsPaid = monthObligations.reduce((total, obligationItem) => {
+        const currentStatus = getOccurrenceStatus('obligation', obligationItem.id, month.key);
+
+        if (currentStatus === 'paid') {
+          return total + Number(obligationItem.amount);
+        }
+
+        return total;
+      }, 0);
+      const totalObligationsPending = totalObligationsPlanned - totalObligationsPaid;
+
+      plannedVsActualMap.set(month.key, {
+        totalEntriesPlanned,
+        totalEntriesReceived,
+        totalEntriesPending,
+        totalObligationsPlanned,
+        totalObligationsPaid,
+        totalObligationsPending,
+        plannedBalance: month.balance,
+        partialActualBalance: totalEntriesReceived - totalObligationsPaid
+      });
+    });
+
+    return plannedVsActualMap;
+  }, [projection, monthDetailsByKey, monthlyOccurrences, familyId]);
 
   const handleSetOccurrenceStatus = async (
     sourceType: 'entry' | 'obligation',
@@ -1111,6 +1175,7 @@ export default function HomePage() {
               const monthAlerts = getMonthAlerts(month);
               const nextMonthAlerts = nextMonthAlertsByKey.get(month.key) ?? [];
               const monthDetails = monthDetailsByKey.get(month.key);
+              const monthPlannedVsActual = monthPlannedVsActualByKey.get(month.key);
 
               return (
                 <article key={`summary-${month.key}`}>
@@ -1123,6 +1188,17 @@ export default function HomePage() {
                   <p>Status do mês: {getMonthStatus(month.balance)}</p>
                   <p>Status bloco 10: {getBlockStatus(month.block10.balance)}</p>
                   <p>Status bloco 25: {getBlockStatus(month.block25.balance)}</p>
+                  <p>Entradas previstas: {currencyFormatter.format(monthPlannedVsActual?.totalEntriesPlanned ?? 0)}</p>
+                  <p>Entradas recebidas: {currencyFormatter.format(monthPlannedVsActual?.totalEntriesReceived ?? 0)}</p>
+                  <p>Entradas pendentes: {currencyFormatter.format(monthPlannedVsActual?.totalEntriesPending ?? 0)}</p>
+                  <p>Despesas previstas: {currencyFormatter.format(monthPlannedVsActual?.totalObligationsPlanned ?? 0)}</p>
+                  <p>Despesas pagas: {currencyFormatter.format(monthPlannedVsActual?.totalObligationsPaid ?? 0)}</p>
+                  <p>Despesas pendentes: {currencyFormatter.format(monthPlannedVsActual?.totalObligationsPending ?? 0)}</p>
+                  <p>Saldo previsto: {currencyFormatter.format(monthPlannedVsActual?.plannedBalance ?? month.balance)}</p>
+                  <p>
+                    Saldo realizado parcial:{' '}
+                    {currencyFormatter.format(monthPlannedVsActual?.partialActualBalance ?? 0)}
+                  </p>
                   <p>Alertas automáticos básicos:</p>
                   <ul>
                     {monthAlerts.length > 0 ? (
