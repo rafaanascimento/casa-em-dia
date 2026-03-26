@@ -78,7 +78,7 @@ type ObligationListRow = {
 
 type MonthlyOccurrenceRow = {
   family_id: string;
-  source_type: 'entry' | 'obligation';
+  source_type: 'entry' | 'obligation' | 'entries' | 'obligations';
   source_id: string;
   month_key: string;
   title: string;
@@ -235,6 +235,20 @@ const getMonthAlerts = (month: ProjectionMonth) => {
   return alerts;
 };
 
+const normalizeSourceType = (sourceType: string) => {
+  if (sourceType === 'entries') {
+    return 'entry';
+  }
+
+  if (sourceType === 'obligations') {
+    return 'obligation';
+  }
+
+  return sourceType;
+};
+
+const normalizeMonthKey = (monthKey: string) => monthKey.slice(0, 7);
+
 export default function HomePage() {
   const router = useRouter();
 
@@ -315,7 +329,13 @@ export default function HomePage() {
     setObligations((obligationsData ?? []) as ObligationRow[]);
     setEntryList((entriesListData ?? []) as EntryListRow[]);
     setObligationList((obligationsListData ?? []) as ObligationListRow[]);
-    setMonthlyOccurrences((occurrencesData ?? []) as MonthlyOccurrenceRow[]);
+    const normalizedOccurrences = ((occurrencesData ?? []) as MonthlyOccurrenceRow[]).map((occurrence) => ({
+      ...occurrence,
+      source_type: normalizeSourceType(occurrence.source_type) as MonthlyOccurrenceRow['source_type'],
+      month_key: normalizeMonthKey(occurrence.month_key)
+    }));
+
+    setMonthlyOccurrences(normalizedOccurrences);
     setIsLoadingProjectionData(false);
   };
 
@@ -518,9 +538,10 @@ export default function HomePage() {
   const getOccurrence = (sourceType: 'entry' | 'obligation', sourceId: string, monthKey: string) =>
     monthlyOccurrences.find(
       (occurrence) =>
-        occurrence.source_type === sourceType &&
+        occurrence.family_id === familyId &&
+        normalizeSourceType(occurrence.source_type) === sourceType &&
         occurrence.source_id === sourceId &&
-        occurrence.month_key === monthKey
+        normalizeMonthKey(occurrence.month_key) === normalizeMonthKey(monthKey)
     );
 
   const handleSetOccurrenceStatus = async (
@@ -541,7 +562,7 @@ export default function HomePage() {
         family_id: familyId,
         source_type: sourceType,
         source_id: sourceId,
-        month_key: monthKey,
+        month_key: normalizeMonthKey(monthKey),
         title,
         amount,
         block_type: blockType,
@@ -558,6 +579,33 @@ export default function HomePage() {
       setIsUpdatingOccurrenceKey(null);
       return;
     }
+
+    setMonthlyOccurrences((previous) => {
+      const normalizedMonthKey = normalizeMonthKey(monthKey);
+      const updatedOccurrence: MonthlyOccurrenceRow = {
+        family_id: familyId,
+        source_type: sourceType,
+        source_id: sourceId,
+        month_key: normalizedMonthKey,
+        title,
+        amount,
+        block_type: blockType,
+        status,
+        processed_at: new Date().toISOString()
+      };
+
+      const withoutCurrent = previous.filter(
+        (occurrence) =>
+          !(
+            occurrence.family_id === familyId &&
+            normalizeSourceType(occurrence.source_type) === sourceType &&
+            occurrence.source_id === sourceId &&
+            normalizeMonthKey(occurrence.month_key) === normalizedMonthKey
+          )
+      );
+
+      return [...withoutCurrent, updatedOccurrence];
+    });
 
     setIsUpdatingOccurrenceKey(null);
     await loadFinancialData(familyId);
