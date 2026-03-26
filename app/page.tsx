@@ -615,7 +615,6 @@ export default function HomePage() {
     await loadFinancialData(familyId);
   };
 
-
   const handleDeleteEntry = async (entryId: string) => {
     const shouldDelete = window.confirm('Tem certeza que deseja excluir esta entrada?');
 
@@ -671,7 +670,6 @@ export default function HomePage() {
 
     await loadFinancialData(familyId);
   };
-
 
   const handleLogout = async () => {
     setError('');
@@ -751,6 +749,7 @@ export default function HomePage() {
                 <th>Entradas</th>
                 <th>Despesas</th>
                 <th>Saldo previsto</th>
+                <th>Alertas</th>
               </tr>
             </thead>
             <tbody>
@@ -760,6 +759,7 @@ export default function HomePage() {
                   <td>{currencyFormatter.format(month.totalEntries)}</td>
                   <td>{currencyFormatter.format(month.totalObligations)}</td>
                   <td>{currencyFormatter.format(month.balance)}</td>
+                  <td>{getMonthAlerts(month).join(' • ') || 'Sem alertas'}</td>
                 </tr>
               ))}
             </tbody>
@@ -777,6 +777,7 @@ export default function HomePage() {
                 <th>Entradas bloco 25</th>
                 <th>Despesas bloco 25</th>
                 <th>Saldo bloco 25</th>
+                <th>Alertas</th>
               </tr>
             </thead>
             <tbody>
@@ -789,6 +790,7 @@ export default function HomePage() {
                   <td>{currencyFormatter.format(month.block25.entries)}</td>
                   <td>{currencyFormatter.format(month.block25.obligations)}</td>
                   <td>{currencyFormatter.format(month.block25.balance)}</td>
+                  <td>{getMonthAlerts(month).join(' • ') || 'Sem alertas'}</td>
                 </tr>
               ))}
             </tbody>
@@ -1252,11 +1254,9 @@ export default function HomePage() {
                     <button type="button" onClick={() => handleStartEditEntry(entryItem)}>
                       Editar
                     </button>
-
                     <button type="button" onClick={() => handleDeleteEntry(entryItem.id)}>
                       Excluir
                     </button>
-
                   </td>
                 </tr>
               ))}
@@ -1470,11 +1470,9 @@ export default function HomePage() {
                     <button type="button" onClick={() => handleStartEditObligation(obligationItem)}>
                       Editar
                     </button>
-
                     <button type="button" onClick={() => handleDeleteObligation(obligationItem.id)}>
                       Excluir
                     </button>
-
                   </td>
                 </tr>
               ))}
