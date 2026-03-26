@@ -105,6 +105,7 @@ type ProjectionMonth = {
 };
 
 const PROJECTION_MONTHS = 6;
+const MONTH_KEY_REGEX = /^(\d{4})-(\d{1,2})$/;
 
 const initialEntryForm: EntryFormState = {
   title: '',
@@ -236,18 +237,42 @@ const getMonthAlerts = (month: ProjectionMonth) => {
 };
 
 const normalizeSourceType = (sourceType: string) => {
-  if (sourceType === 'entries') {
+  const normalizedValue = sourceType.trim().toLowerCase();
+
+  if (normalizedValue === 'entries') {
     return 'entry';
   }
 
-  if (sourceType === 'obligations') {
+  if (normalizedValue === 'obligations') {
     return 'obligation';
   }
 
-  return sourceType;
+  if (normalizedValue === 'entry' || normalizedValue === 'obligation') {
+    return normalizedValue;
+  }
+
+  return '';
 };
 
-const normalizeMonthKey = (monthKey: string) => monthKey.slice(0, 7);
+const toDatabaseSourceType = (sourceType: 'entry' | 'obligation') => {
+  if (sourceType === 'entry') {
+    return 'entries';
+  }
+
+  return 'obligations';
+};
+
+const normalizeMonthKey = (monthKey: string) => {
+  const normalizedValue = monthKey.trim();
+  const matchedMonth = normalizedValue.match(MONTH_KEY_REGEX);
+
+  if (!matchedMonth) {
+    return '';
+  }
+
+  const [, year, month] = matchedMonth;
+  return `${year}-${month.padStart(2, '0')}`;
+};
 
 export default function HomePage() {
   const router = useRouter();
@@ -277,6 +302,7 @@ export default function HomePage() {
   const [isUpdatingEntry, setIsUpdatingEntry] = useState(false);
   const [isUpdatingObligation, setIsUpdatingObligation] = useState(false);
   const [isUpdatingOccurrenceKey, setIsUpdatingOccurrenceKey] = useState<string | null>(null);
+  const [expandedMonthKeys, setExpandedMonthKeys] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [entrySuccessMessage, setEntrySuccessMessage] = useState('');
   const [obligationSuccessMessage, setObligationSuccessMessage] = useState('');
@@ -329,11 +355,14 @@ export default function HomePage() {
     setObligations((obligationsData ?? []) as ObligationRow[]);
     setEntryList((entriesListData ?? []) as EntryListRow[]);
     setObligationList((obligationsListData ?? []) as ObligationListRow[]);
-    const normalizedOccurrences = ((occurrencesData ?? []) as MonthlyOccurrenceRow[]).map((occurrence) => ({
-      ...occurrence,
-      source_type: normalizeSourceType(occurrence.source_type) as MonthlyOccurrenceRow['source_type'],
-      month_key: normalizeMonthKey(occurrence.month_key)
-    }));
+    const normalizedOccurrences = ((occurrencesData ?? []) as MonthlyOccurrenceRow[])
+      .map((occurrence) => ({
+        ...occurrence,
+        source_type: normalizeSourceType(occurrence.source_type) as MonthlyOccurrenceRow['source_type'],
+        month_key: normalizeMonthKey(occurrence.month_key),
+        source_id: occurrence.source_id.trim()
+      }))
+      .filter((occurrence) => occurrence.source_type && occurrence.month_key && occurrence.source_id);
 
     setMonthlyOccurrences(normalizedOccurrences);
     setIsLoadingProjectionData(false);
@@ -536,13 +565,20 @@ export default function HomePage() {
   }, [projection, entries, obligations]);
 
   const getOccurrence = (sourceType: 'entry' | 'obligation', sourceId: string, monthKey: string) =>
-    monthlyOccurrences.find(
-      (occurrence) =>
+    monthlyOccurrences.find((occurrence) => {
+      const normalizedSourceType = normalizeSourceType(occurrence.source_type);
+      const normalizedMonthKey = normalizeMonthKey(occurrence.month_key);
+
+      return (
         occurrence.family_id === familyId &&
-        normalizeSourceType(occurrence.source_type) === sourceType &&
+        normalizedSourceType === sourceType &&
         occurrence.source_id === sourceId &&
-        normalizeMonthKey(occurrence.month_key) === normalizeMonthKey(monthKey)
-    );
+        normalizedMonthKey === normalizeMonthKey(monthKey)
+      );
+    });
+
+  const getOccurrenceStatus = (sourceType: 'entry' | 'obligation', sourceId: string, monthKey: string) =>
+    getOccurrence(sourceType, sourceId, monthKey)?.status ?? 'pending';
 
   const handleSetOccurrenceStatus = async (
     sourceType: 'entry' | 'obligation',
@@ -553,16 +589,46 @@ export default function HomePage() {
     blockType: '10' | '25',
     status: 'received' | 'paid'
   ) => {
+    const normalizedSourceType = normalizeSourceType(sourceType);
+    const normalizedSourceId = sourceId.trim();
+    const normalizedMonthKey = normalizeMonthKey(monthKey);
+    const sourceTypeForDatabase = toDatabaseSourceType(sourceType);
     const occurrenceKey = `${sourceType}-${sourceId}-${monthKey}`;
     setError('');
     setIsUpdatingOccurrenceKey(occurrenceKey);
 
+    if (!familyId) {
+      console.error('Falha ao atualizar status mensal: family_id ausente.', {
+        sourceType,
+        sourceId,
+        monthKey
+      });
+      setError('Não foi possível atualizar o status mensal: família não identificada.');
+      setIsUpdatingOccurrenceKey(null);
+      return;
+    }
+
+    if (!normalizedSourceType || !normalizedSourceId || !normalizedMonthKey) {
+      console.error('Falha ao atualizar status mensal: parâmetros inválidos.', {
+        familyId,
+        sourceType,
+        sourceId,
+        monthKey,
+        normalizedSourceType,
+        normalizedSourceId,
+        normalizedMonthKey
+      });
+      setError('Não foi possível atualizar o status mensal por inconsistência nos dados.');
+      setIsUpdatingOccurrenceKey(null);
+      return;
+    }
+
     const { error: upsertError } = await supabase.from('monthly_occurrences').upsert(
       {
         family_id: familyId,
-        source_type: sourceType,
-        source_id: sourceId,
-        month_key: normalizeMonthKey(monthKey),
+        source_type: sourceTypeForDatabase,
+        source_id: normalizedSourceId,
+        month_key: normalizedMonthKey,
         title,
         amount,
         block_type: blockType,
@@ -575,17 +641,32 @@ export default function HomePage() {
     );
 
     if (upsertError) {
-      setError('Não foi possível atualizar o status mensal do lançamento.');
+      console.error('Erro ao persistir status mensal em monthly_occurrences.', {
+        code: upsertError.code,
+        message: upsertError.message,
+        details: upsertError.details,
+        hint: upsertError.hint,
+        payload: {
+          family_id: familyId,
+          source_type: sourceTypeForDatabase,
+          source_id: normalizedSourceId,
+          month_key: normalizedMonthKey,
+          title,
+          amount,
+          block_type: blockType,
+          status
+        }
+      });
+      setError(`Não foi possível atualizar o status mensal do lançamento: ${upsertError.message}`);
       setIsUpdatingOccurrenceKey(null);
       return;
     }
 
     setMonthlyOccurrences((previous) => {
-      const normalizedMonthKey = normalizeMonthKey(monthKey);
       const updatedOccurrence: MonthlyOccurrenceRow = {
         family_id: familyId,
-        source_type: sourceType,
-        source_id: sourceId,
+        source_type: sourceTypeForDatabase,
+        source_id: normalizedSourceId,
         month_key: normalizedMonthKey,
         title,
         amount,
@@ -599,7 +680,7 @@ export default function HomePage() {
           !(
             occurrence.family_id === familyId &&
             normalizeSourceType(occurrence.source_type) === sourceType &&
-            occurrence.source_id === sourceId &&
+            occurrence.source_id === normalizedSourceId &&
             normalizeMonthKey(occurrence.month_key) === normalizedMonthKey
           )
       );
@@ -896,6 +977,20 @@ export default function HomePage() {
     router.replace('/login');
   };
 
+  const handleMonthDetailsToggle = (monthKey: string, isOpen: boolean) => {
+    setExpandedMonthKeys((previous) => {
+      if (isOpen) {
+        if (previous.includes(monthKey)) {
+          return previous;
+        }
+
+        return [...previous, monthKey];
+      }
+
+      return previous.filter((key) => key !== monthKey);
+    });
+  };
+
   if (isCheckingSession) {
     return (
       <main>
@@ -1046,15 +1141,23 @@ export default function HomePage() {
                       <li>Sem mudanças relevantes para o próximo mês.</li>
                     )}
                   </ul>
-                  <details>
+                  <details
+                    open={expandedMonthKeys.includes(month.key)}
+                    onToggle={(event) =>
+                      handleMonthDetailsToggle(
+                        month.key,
+                        (event.currentTarget as HTMLDetailsElement).open
+                      )
+                    }
+                  >
                     <summary>Detalhamento do mês</summary>
 
                     <p>Entradas do mês:</p>
                     <ul>
                       {(monthDetails?.entries ?? []).length > 0 ? (
                         (monthDetails?.entries ?? []).map((entryItem) => {
-                          const occurrence = getOccurrence('entry', entryItem.id, month.key);
-                          const isReceived = occurrence?.status === 'received';
+                          const currentStatus = getOccurrenceStatus('entry', entryItem.id, month.key);
+                          const isReceived = currentStatus === 'received';
                           const occurrenceKey = `entry-${entryItem.id}-${month.key}`;
 
                           return (
@@ -1093,8 +1196,8 @@ export default function HomePage() {
                     <ul>
                       {(monthDetails?.obligations ?? []).length > 0 ? (
                         (monthDetails?.obligations ?? []).map((obligationItem) => {
-                          const occurrence = getOccurrence('obligation', obligationItem.id, month.key);
-                          const isPaid = occurrence?.status === 'paid';
+                          const currentStatus = getOccurrenceStatus('obligation', obligationItem.id, month.key);
+                          const isPaid = currentStatus === 'paid';
                           const occurrenceKey = `obligation-${obligationItem.id}-${month.key}`;
 
                           return (
