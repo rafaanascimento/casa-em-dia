@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../lib/supabase';
 
@@ -28,6 +28,32 @@ type ObligationFormState = {
   isActive: boolean;
 };
 
+type EntryRow = {
+  amount: number;
+  recurrence_type: 'monthly' | 'one_time';
+  start_date: string;
+  end_date: string | null;
+};
+
+type ObligationRow = {
+  amount: number;
+  type: 'fixa' | 'unica' | 'parcelada';
+  recurrence_type: 'monthly' | 'one_time';
+  total_installments: number | null;
+  start_date: string;
+  end_date: string | null;
+};
+
+type ProjectionMonth = {
+  key: string;
+  label: string;
+  totalEntries: number;
+  totalObligations: number;
+  balance: number;
+};
+
+const PROJECTION_MONTHS = 6;
+
 const initialEntryForm: EntryFormState = {
   title: '',
   amount: '',
@@ -52,12 +78,42 @@ const initialObligationForm: ObligationFormState = {
   isActive: true
 };
 
+const currencyFormatter = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL'
+});
+
+const getMonthStart = (date: Date) => new Date(date.getFullYear(), date.getMonth(), 1);
+
+const addMonths = (date: Date, months: number) => new Date(date.getFullYear(), date.getMonth() + months, 1);
+
+const isMonthInRange = (target: Date, startDate: string, endDate?: string | null) => {
+  const startMonth = getMonthStart(new Date(startDate));
+  const endMonth = endDate ? getMonthStart(new Date(endDate)) : null;
+
+  if (target < startMonth) {
+    return false;
+  }
+
+  if (endMonth && target > endMonth) {
+    return false;
+  }
+
+  return true;
+};
+
+const monthDiff = (startDate: string, target: Date) => {
+  const start = getMonthStart(new Date(startDate));
+  return (target.getFullYear() - start.getFullYear()) * 12 + (target.getMonth() - start.getMonth());
+};
+
 export default function HomePage() {
   const router = useRouter();
   const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [isCreatingFamily, setIsCreatingFamily] = useState(false);
   const [isSavingEntry, setIsSavingEntry] = useState(false);
   const [isSavingObligation, setIsSavingObligation] = useState(false);
+  const [isLoadingProjectionData, setIsLoadingProjectionData] = useState(false);
   const [userId, setUserId] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [familyId, setFamilyId] = useState('');
@@ -65,9 +121,39 @@ export default function HomePage() {
   const [hasFamilyMembership, setHasFamilyMembership] = useState(false);
   const [entryForm, setEntryForm] = useState<EntryFormState>(initialEntryForm);
   const [obligationForm, setObligationForm] = useState<ObligationFormState>(initialObligationForm);
+  const [entries, setEntries] = useState<EntryRow[]>([]);
+  const [obligations, setObligations] = useState<ObligationRow[]>([]);
   const [error, setError] = useState('');
   const [entrySuccessMessage, setEntrySuccessMessage] = useState('');
   const [obligationSuccessMessage, setObligationSuccessMessage] = useState('');
+
+  const loadFinancialData = async (currentFamilyId: string) => {
+    setIsLoadingProjectionData(true);
+
+    const [{ data: entriesData, error: entriesError }, { data: obligationsData, error: obligationsError }] =
+      await Promise.all([
+        supabase
+          .from('entries')
+          .select('amount, recurrence_type, start_date, end_date')
+          .eq('family_id', currentFamilyId)
+          .eq('is_active', true),
+        supabase
+          .from('obligations')
+          .select('amount, type, recurrence_type, total_installments, start_date, end_date')
+          .eq('family_id', currentFamilyId)
+          .eq('is_active', true)
+      ]);
+
+    if (entriesError || obligationsError) {
+      setError('Não foi possível carregar os dados para projeção mensal.');
+      setIsLoadingProjectionData(false);
+      return;
+    }
+
+    setEntries((entriesData ?? []) as EntryRow[]);
+    setObligations((obligationsData ?? []) as ObligationRow[]);
+    setIsLoadingProjectionData(false);
+  };
 
   useEffect(() => {
     const checkSessionAndFamily = async () => {
@@ -104,6 +190,7 @@ export default function HomePage() {
       if (familyMember?.family_id) {
         setFamilyId(familyMember.family_id);
         setHasFamilyMembership(true);
+        await loadFinancialData(familyMember.family_id);
       }
 
       setIsCheckingSession(false);
@@ -111,6 +198,68 @@ export default function HomePage() {
 
     void checkSessionAndFamily();
   }, [router]);
+
+  const projection = useMemo<ProjectionMonth[]>(() => {
+    const nowMonth = getMonthStart(new Date());
+
+    return Array.from({ length: PROJECTION_MONTHS }, (_, index) => {
+      const currentMonth = addMonths(nowMonth, index);
+      const monthLabel = currentMonth.toLocaleDateString('pt-BR', {
+        month: 'long',
+        year: 'numeric'
+      });
+
+      const totalEntries = entries.reduce((sum, entry) => {
+        if (entry.recurrence_type === 'one_time') {
+          const diff = monthDiff(entry.start_date, currentMonth);
+          return diff === 0 ? sum + Number(entry.amount) : sum;
+        }
+
+        if (isMonthInRange(currentMonth, entry.start_date, entry.end_date)) {
+          return sum + Number(entry.amount);
+        }
+
+        return sum;
+      }, 0);
+
+      const totalObligations = obligations.reduce((sum, obligation) => {
+        if (obligation.type === 'unica') {
+          const diff = monthDiff(obligation.start_date, currentMonth);
+          return diff === 0 ? sum + Number(obligation.amount) : sum;
+        }
+
+        if (obligation.type === 'parcelada') {
+          if (!obligation.total_installments || obligation.total_installments < 1) {
+            return sum;
+          }
+
+          const diff = monthDiff(obligation.start_date, currentMonth);
+          const inInstallmentWindow = diff >= 0 && diff < obligation.total_installments;
+          const inDateRange = isMonthInRange(currentMonth, obligation.start_date, obligation.end_date);
+
+          if (inInstallmentWindow && inDateRange) {
+            return sum + Number(obligation.amount);
+          }
+
+          return sum;
+        }
+
+        if (isMonthInRange(currentMonth, obligation.start_date, obligation.end_date)) {
+          return sum + Number(obligation.amount);
+        }
+
+        return sum;
+      }, 0);
+
+      return {
+        key: `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`,
+        label: monthLabel,
+        totalEntries,
+        totalObligations,
+        balance: totalEntries - totalObligations
+      };
+    });
+  }, [entries, obligations]);
 
   const handleCreateFamily = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -149,6 +298,7 @@ export default function HomePage() {
     setFamilyId(newFamily.id);
     setHasFamilyMembership(true);
     setIsCreatingFamily(false);
+    await loadFinancialData(newFamily.id);
   };
 
   const handleCreateEntry = async (event: FormEvent<HTMLFormElement>) => {
@@ -179,6 +329,7 @@ export default function HomePage() {
     setEntryForm(initialEntryForm);
     setEntrySuccessMessage('Entrada cadastrada com sucesso.');
     setIsSavingEntry(false);
+    await loadFinancialData(familyId);
   };
 
   const handleCreateObligation = async (event: FormEvent<HTMLFormElement>) => {
@@ -214,6 +365,7 @@ export default function HomePage() {
     setObligationForm(initialObligationForm);
     setObligationSuccessMessage('Despesa cadastrada com sucesso.');
     setIsSavingObligation(false);
+    await loadFinancialData(familyId);
   };
 
   const handleLogout = async () => {
@@ -271,6 +423,34 @@ export default function HomePage() {
       <h1>Casa em Dia</h1>
       <p>Você está autenticado e já possui vínculo com uma família.</p>
       {userEmail ? <p>Usuário: {userEmail}</p> : null}
+
+      <section>
+        <h2>Projeção mensal básica</h2>
+        {isLoadingProjectionData ? <p>Carregando projeção...</p> : null}
+
+        {!isLoadingProjectionData ? (
+          <table>
+            <thead>
+              <tr>
+                <th>Mês</th>
+                <th>Entradas</th>
+                <th>Despesas</th>
+                <th>Saldo previsto</th>
+              </tr>
+            </thead>
+            <tbody>
+              {projection.map((month) => (
+                <tr key={month.key}>
+                  <td>{month.label}</td>
+                  <td>{currencyFormatter.format(month.totalEntries)}</td>
+                  <td>{currencyFormatter.format(month.totalObligations)}</td>
+                  <td>{currencyFormatter.format(month.balance)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : null}
+      </section>
 
       <section>
         <h2>Cadastrar entrada</h2>
