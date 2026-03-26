@@ -193,6 +193,7 @@ const getMonthAlerts = (month: ProjectionMonth) => {
 
 export default function HomePage() {
   const router = useRouter();
+
   const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [isCreatingFamily, setIsCreatingFamily] = useState(false);
   const [isSavingEntry, setIsSavingEntry] = useState(false);
@@ -1417,6 +1418,7 @@ export default function HomePage() {
       <button type="button" onClick={handleLogout}>
         Sair
       </button>
+
       {error ? <p>{error}</p> : null}
     </main>
   );
