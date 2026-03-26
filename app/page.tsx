@@ -46,6 +46,26 @@ type ObligationRow = {
   block_type: '10' | '25';
 };
 
+type EntryListRow = {
+  title: string;
+  amount: number;
+  recurrence_type: 'monthly' | 'one_time';
+  start_date: string;
+  block_type: '10' | '25';
+  is_active: boolean;
+};
+
+type ObligationListRow = {
+  title: string;
+  amount: number;
+  type: 'fixa' | 'unica' | 'parcelada';
+  recurrence_type: 'monthly' | 'one_time';
+  total_installments: number | null;
+  start_date: string;
+  block_type: '10' | '25';
+  is_active: boolean;
+};
+
 type BlockProjection = {
   entries: number;
   obligations: number;
@@ -183,6 +203,8 @@ export default function HomePage() {
   const [obligationForm, setObligationForm] = useState<ObligationFormState>(initialObligationForm);
   const [entries, setEntries] = useState<EntryRow[]>([]);
   const [obligations, setObligations] = useState<ObligationRow[]>([]);
+  const [entryList, setEntryList] = useState<EntryListRow[]>([]);
+  const [obligationList, setObligationList] = useState<ObligationListRow[]>([]);
   const [error, setError] = useState('');
   const [entrySuccessMessage, setEntrySuccessMessage] = useState('');
   const [obligationSuccessMessage, setObligationSuccessMessage] = useState('');
@@ -190,8 +212,12 @@ export default function HomePage() {
   const loadFinancialData = async (currentFamilyId: string) => {
     setIsLoadingProjectionData(true);
 
-    const [{ data: entriesData, error: entriesError }, { data: obligationsData, error: obligationsError }] =
-      await Promise.all([
+    const [
+      { data: entriesData, error: entriesError },
+      { data: obligationsData, error: obligationsError },
+      { data: entriesListData, error: entriesListError },
+      { data: obligationsListData, error: obligationsListError }
+    ] = await Promise.all([
         supabase
           .from('entries')
           .select('amount, recurrence_type, start_date, end_date, block_type')
@@ -201,10 +227,20 @@ export default function HomePage() {
           .from('obligations')
           .select('amount, type, recurrence_type, total_installments, start_date, end_date, block_type')
           .eq('family_id', currentFamilyId)
-          .eq('is_active', true)
+          .eq('is_active', true),
+        supabase
+          .from('entries')
+          .select('title, amount, recurrence_type, start_date, block_type, is_active')
+          .eq('family_id', currentFamilyId)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('obligations')
+          .select('title, amount, type, recurrence_type, total_installments, start_date, block_type, is_active')
+          .eq('family_id', currentFamilyId)
+          .order('created_at', { ascending: false })
       ]);
 
-    if (entriesError || obligationsError) {
+    if (entriesError || obligationsError || entriesListError || obligationsListError) {
       setError('Não foi possível carregar os dados para projeção mensal.');
       setIsLoadingProjectionData(false);
       return;
@@ -212,6 +248,8 @@ export default function HomePage() {
 
     setEntries((entriesData ?? []) as EntryRow[]);
     setObligations((obligationsData ?? []) as ObligationRow[]);
+    setEntryList((entriesListData ?? []) as EntryListRow[]);
+    setObligationList((obligationsListData ?? []) as ObligationListRow[]);
     setIsLoadingProjectionData(false);
   };
 
@@ -873,6 +911,68 @@ export default function HomePage() {
           </button>
         </form>
         {obligationSuccessMessage ? <p>{obligationSuccessMessage}</p> : null}
+        </section>
+
+        <section>
+          <h2>Entradas cadastradas</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Título</th>
+                <th>Valor</th>
+                <th>Recorrência</th>
+                <th>Data inicial</th>
+                <th>Bloco</th>
+                <th>Ativo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {entryList.map((entryItem, index) => (
+                <tr key={`${entryItem.title}-${entryItem.start_date}-${entryItem.amount}-${index}`}>
+                  <td>{entryItem.title}</td>
+                  <td>{currencyFormatter.format(Number(entryItem.amount))}</td>
+                  <td>{entryItem.recurrence_type}</td>
+                  <td>{entryItem.start_date}</td>
+                  <td>{entryItem.block_type}</td>
+                  <td>{entryItem.is_active ? 'Sim' : 'Não'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section>
+          <h2>Despesas cadastradas</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Título</th>
+                <th>Valor</th>
+                <th>Tipo</th>
+                <th>Recorrência</th>
+                <th>Parcelas</th>
+                <th>Data inicial</th>
+                <th>Bloco</th>
+                <th>Ativo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {obligationList.map((obligationItem, index) => (
+                <tr
+                  key={`${obligationItem.title}-${obligationItem.start_date}-${obligationItem.amount}-${index}`}
+                >
+                  <td>{obligationItem.title}</td>
+                  <td>{currencyFormatter.format(Number(obligationItem.amount))}</td>
+                  <td>{obligationItem.type}</td>
+                  <td>{obligationItem.recurrence_type}</td>
+                  <td>{obligationItem.total_installments ?? '-'}</td>
+                  <td>{obligationItem.start_date}</td>
+                  <td>{obligationItem.block_type}</td>
+                  <td>{obligationItem.is_active ? 'Sim' : 'Não'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </section>
       </div>
 
