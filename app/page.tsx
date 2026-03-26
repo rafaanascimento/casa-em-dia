@@ -45,7 +45,7 @@ type ObligationRow = {
   total_installments: number | null;
   start_date: string;
   end_date: string | null;
-<<<<<<< codex/implement-initial-family-context-for-casa-em-dia-erkjel
+
   block_type: '10' | '25';
 };
 
@@ -135,7 +135,7 @@ export default function HomePage() {
   const [familyId, setFamilyId] = useState('');
   const [familyName, setFamilyName] = useState('');
   const [hasFamilyMembership, setHasFamilyMembership] = useState(false);
-<<<<<<< codex/implement-initial-family-context-for-casa-em-dia-erkjel
+
   const [projectionViewMode, setProjectionViewMode] = useState<'monthly' | 'blocks'>('monthly');
 
   const [entryForm, setEntryForm] = useState<EntryFormState>(initialEntryForm);
