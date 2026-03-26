@@ -141,6 +141,30 @@ const getBlockStatus = (balance: number) => {
   return 'bloco apertado';
 };
 
+const getMonthAlerts = (month: ProjectionMonth) => {
+  const alerts: string[] = [];
+
+  if (month.balance < 0) {
+    alerts.push('Mês negativo');
+  } else if (month.balance === 0) {
+    alerts.push('Mês apertado');
+  }
+
+  if (month.block10.balance < 0) {
+    alerts.push('Bloco 10 negativo');
+  } else if (month.block10.balance === 0) {
+    alerts.push('Bloco 10 apertado');
+  }
+
+  if (month.block25.balance < 0) {
+    alerts.push('Bloco 25 negativo');
+  } else if (month.block25.balance === 0) {
+    alerts.push('Bloco 25 apertado');
+  }
+
+  return alerts;
+};
+
 export default function HomePage() {
   const router = useRouter();
 
@@ -555,19 +579,31 @@ export default function HomePage() {
         {!isLoadingProjectionData ? (
           <section>
             <h3>Resumos mensais</h3>
-            {projection.map((month) => (
-              <article key={`summary-${month.key}`}>
-                <h4>{month.label}</h4>
-                <p>Total de entradas previstas: {currencyFormatter.format(month.totalEntries)}</p>
-                <p>Total de despesas previstas: {currencyFormatter.format(month.totalObligations)}</p>
-                <p>Saldo previsto: {currencyFormatter.format(month.balance)}</p>
-                <p>Total do bloco 10: {currencyFormatter.format(month.block10.balance)}</p>
-                <p>Total do bloco 25: {currencyFormatter.format(month.block25.balance)}</p>
-                <p>Status do mês: {getMonthStatus(month.balance)}</p>
-                <p>Status bloco 10: {getBlockStatus(month.block10.balance)}</p>
-                <p>Status bloco 25: {getBlockStatus(month.block25.balance)}</p>
-              </article>
-            ))}
+            {projection.map((month) => {
+              const monthAlerts = getMonthAlerts(month);
+
+              return (
+                <article key={`summary-${month.key}`}>
+                  <h4>{month.label}</h4>
+                  <p>Total de entradas previstas: {currencyFormatter.format(month.totalEntries)}</p>
+                  <p>Total de despesas previstas: {currencyFormatter.format(month.totalObligations)}</p>
+                  <p>Saldo previsto: {currencyFormatter.format(month.balance)}</p>
+                  <p>Total do bloco 10: {currencyFormatter.format(month.block10.balance)}</p>
+                  <p>Total do bloco 25: {currencyFormatter.format(month.block25.balance)}</p>
+                  <p>Status do mês: {getMonthStatus(month.balance)}</p>
+                  <p>Status bloco 10: {getBlockStatus(month.block10.balance)}</p>
+                  <p>Status bloco 25: {getBlockStatus(month.block25.balance)}</p>
+                  <p>Alertas automáticos básicos:</p>
+                  <ul>
+                    {monthAlerts.length > 0 ? (
+                      monthAlerts.map((alert) => <li key={`${month.key}-${alert}`}>{alert}</li>)
+                    ) : (
+                      <li>Sem alertas para este mês.</li>
+                    )}
+                  </ul>
+                </article>
+              );
+            })}
           </section>
         ) : null}
         </section>
