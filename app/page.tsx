@@ -76,6 +76,18 @@ type ObligationListRow = {
   is_active: boolean;
 };
 
+type MonthlyOccurrenceRow = {
+  family_id: string;
+  source_type: 'entry' | 'obligation';
+  source_id: string;
+  month_key: string;
+  title: string;
+  amount: number;
+  block_type: '10' | '25';
+  status: 'pending' | 'received' | 'paid';
+  processed_at: string | null;
+};
+
 type BlockProjection = {
   entries: number;
   obligations: number;
@@ -243,12 +255,14 @@ export default function HomePage() {
   const [obligations, setObligations] = useState<ObligationRow[]>([]);
   const [entryList, setEntryList] = useState<EntryListRow[]>([]);
   const [obligationList, setObligationList] = useState<ObligationListRow[]>([]);
+  const [monthlyOccurrences, setMonthlyOccurrences] = useState<MonthlyOccurrenceRow[]>([]);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [editingObligationId, setEditingObligationId] = useState<string | null>(null);
   const [editingEntryForm, setEditingEntryForm] = useState<EntryFormState>(initialEntryForm);
   const [editingObligationForm, setEditingObligationForm] = useState<ObligationFormState>(initialObligationForm);
   const [isUpdatingEntry, setIsUpdatingEntry] = useState(false);
   const [isUpdatingObligation, setIsUpdatingObligation] = useState(false);
+  const [isUpdatingOccurrenceKey, setIsUpdatingOccurrenceKey] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [entrySuccessMessage, setEntrySuccessMessage] = useState('');
   const [obligationSuccessMessage, setObligationSuccessMessage] = useState('');
@@ -260,7 +274,8 @@ export default function HomePage() {
       { data: entriesData, error: entriesError },
       { data: obligationsData, error: obligationsError },
       { data: entriesListData, error: entriesListError },
-      { data: obligationsListData, error: obligationsListError }
+      { data: obligationsListData, error: obligationsListError },
+      { data: occurrencesData, error: occurrencesError }
     ] = await Promise.all([
         supabase
           .from('entries')
@@ -283,10 +298,14 @@ export default function HomePage() {
             'id, title, amount, type, recurrence_type, total_installments, start_date, end_date, due_day, block_type, is_active'
           )
           .eq('family_id', currentFamilyId)
-          .order('created_at', { ascending: false })
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('monthly_occurrences')
+          .select('family_id, source_type, source_id, month_key, title, amount, block_type, status, processed_at')
+          .eq('family_id', currentFamilyId)
       ]);
 
-    if (entriesError || obligationsError || entriesListError || obligationsListError) {
+    if (entriesError || obligationsError || entriesListError || obligationsListError || occurrencesError) {
       setError('Não foi possível carregar os dados para projeção mensal.');
       setIsLoadingProjectionData(false);
       return;
@@ -296,6 +315,7 @@ export default function HomePage() {
     setObligations((obligationsData ?? []) as ObligationRow[]);
     setEntryList((entriesListData ?? []) as EntryListRow[]);
     setObligationList((obligationsListData ?? []) as ObligationListRow[]);
+    setMonthlyOccurrences((occurrencesData ?? []) as MonthlyOccurrenceRow[]);
     setIsLoadingProjectionData(false);
   };
 
@@ -494,6 +514,54 @@ export default function HomePage() {
 
     return detailsMap;
   }, [projection, entries, obligations]);
+
+  const getOccurrence = (sourceType: 'entry' | 'obligation', sourceId: string, monthKey: string) =>
+    monthlyOccurrences.find(
+      (occurrence) =>
+        occurrence.source_type === sourceType &&
+        occurrence.source_id === sourceId &&
+        occurrence.month_key === monthKey
+    );
+
+  const handleSetOccurrenceStatus = async (
+    sourceType: 'entry' | 'obligation',
+    sourceId: string,
+    monthKey: string,
+    title: string,
+    amount: number,
+    blockType: '10' | '25',
+    status: 'received' | 'paid'
+  ) => {
+    const occurrenceKey = `${sourceType}-${sourceId}-${monthKey}`;
+    setError('');
+    setIsUpdatingOccurrenceKey(occurrenceKey);
+
+    const { error: upsertError } = await supabase.from('monthly_occurrences').upsert(
+      {
+        family_id: familyId,
+        source_type: sourceType,
+        source_id: sourceId,
+        month_key: monthKey,
+        title,
+        amount,
+        block_type: blockType,
+        status,
+        processed_at: new Date().toISOString()
+      },
+      {
+        onConflict: 'family_id,source_type,source_id,month_key'
+      }
+    );
+
+    if (upsertError) {
+      setError('Não foi possível atualizar o status mensal do lançamento.');
+      setIsUpdatingOccurrenceKey(null);
+      return;
+    }
+
+    setIsUpdatingOccurrenceKey(null);
+    await loadFinancialData(familyId);
+  };
 
   const handleCreateFamily = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -936,12 +1004,38 @@ export default function HomePage() {
                     <p>Entradas do mês:</p>
                     <ul>
                       {(monthDetails?.entries ?? []).length > 0 ? (
-                        (monthDetails?.entries ?? []).map((entryItem) => (
-                          <li key={`${month.key}-entry-${entryItem.id}`}>
-                            {entryItem.title} — {currencyFormatter.format(Number(entryItem.amount))} (
-                            {entryItem.recurrence_type}, bloco {entryItem.block_type})
-                          </li>
-                        ))
+                        (monthDetails?.entries ?? []).map((entryItem) => {
+                          const occurrence = getOccurrence('entry', entryItem.id, month.key);
+                          const isReceived = occurrence?.status === 'received';
+                          const occurrenceKey = `entry-${entryItem.id}-${month.key}`;
+
+                          return (
+                            <li key={`${month.key}-entry-${entryItem.id}`}>
+                              {entryItem.title} — {currencyFormatter.format(Number(entryItem.amount))} (
+                              {entryItem.recurrence_type}, bloco {entryItem.block_type}) —{' '}
+                              {isReceived ? 'Recebida' : 'Pendente'}
+                              <button
+                                type="button"
+                                disabled={isReceived || isUpdatingOccurrenceKey === occurrenceKey}
+                                onClick={() =>
+                                  handleSetOccurrenceStatus(
+                                    'entry',
+                                    entryItem.id,
+                                    month.key,
+                                    entryItem.title,
+                                    Number(entryItem.amount),
+                                    entryItem.block_type,
+                                    'received'
+                                  )
+                                }
+                              >
+                                {isUpdatingOccurrenceKey === occurrenceKey
+                                  ? 'Salvando...'
+                                  : 'Marcar como recebida'}
+                              </button>
+                            </li>
+                          );
+                        })
                       ) : (
                         <li>Sem entradas neste mês.</li>
                       )}
@@ -950,16 +1044,41 @@ export default function HomePage() {
                     <p>Despesas do mês:</p>
                     <ul>
                       {(monthDetails?.obligations ?? []).length > 0 ? (
-                        (monthDetails?.obligations ?? []).map((obligationItem) => (
-                          <li key={`${month.key}-obligation-${obligationItem.id}`}>
-                            {obligationItem.title} — {currencyFormatter.format(Number(obligationItem.amount))} (
-                            {obligationItem.type}
-                            {obligationItem.type === 'parcelada' && obligationItem.total_installments
-                              ? `, parcelada em ${obligationItem.total_installments}x`
-                              : ''}
-                            , bloco {obligationItem.block_type})
-                          </li>
-                        ))
+                        (monthDetails?.obligations ?? []).map((obligationItem) => {
+                          const occurrence = getOccurrence('obligation', obligationItem.id, month.key);
+                          const isPaid = occurrence?.status === 'paid';
+                          const occurrenceKey = `obligation-${obligationItem.id}-${month.key}`;
+
+                          return (
+                            <li key={`${month.key}-obligation-${obligationItem.id}`}>
+                              {obligationItem.title} — {currencyFormatter.format(Number(obligationItem.amount))} (
+                              {obligationItem.type}
+                              {obligationItem.type === 'parcelada' && obligationItem.total_installments
+                                ? `, parcelada em ${obligationItem.total_installments}x`
+                                : ''}
+                              , bloco {obligationItem.block_type}) — {isPaid ? 'Paga' : 'Pendente'}
+                              <button
+                                type="button"
+                                disabled={isPaid || isUpdatingOccurrenceKey === occurrenceKey}
+                                onClick={() =>
+                                  handleSetOccurrenceStatus(
+                                    'obligation',
+                                    obligationItem.id,
+                                    month.key,
+                                    obligationItem.title,
+                                    Number(obligationItem.amount),
+                                    obligationItem.block_type,
+                                    'paid'
+                                  )
+                                }
+                              >
+                                {isUpdatingOccurrenceKey === occurrenceKey
+                                  ? 'Salvando...'
+                                  : 'Marcar como paga'}
+                              </button>
+                            </li>
+                          );
+                        })
                       ) : (
                         <li>Sem despesas neste mês.</li>
                       )}
