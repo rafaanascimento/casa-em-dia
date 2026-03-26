@@ -115,6 +115,11 @@ type MonthPlannedVsActual = {
   partialActualBalance: number;
 };
 
+type MonthRiskAnalysis = {
+  level: 'seguro' | 'atenção' | 'risco';
+  messages: string[];
+};
+
 const PROJECTION_MONTHS = 6;
 const MONTH_KEY_REGEX = /^(\d{4})-(\d{1,2})$/;
 const PROJECTION_VIEW_MODE_STORAGE_KEY = 'casa-em-dia:projection-view-mode';
@@ -311,6 +316,18 @@ const getBalanceTone = (balance: number) => {
   }
 
   return 'status-tight';
+};
+
+const getRiskTone = (riskLevel: MonthRiskAnalysis['level']) => {
+  if (riskLevel === 'risco') {
+    return 'status-negative';
+  }
+
+  if (riskLevel === 'atenção') {
+    return 'status-tight';
+  }
+
+  return 'status-positive';
 };
 
 const normalizeSourceType = (sourceType: string) => {
@@ -757,6 +774,58 @@ export default function HomePage() {
 
     return plannedVsActualMap;
   }, [projection, monthDetailsByKey, monthlyOccurrences, familyId]);
+
+  const monthRiskByKey = useMemo(() => {
+    const riskMap = new Map<string, MonthRiskAnalysis>();
+
+    projection.forEach((month, index) => {
+      const previousMonth = projection[index - 1];
+      const messages: string[] = [];
+      let riskLevel: MonthRiskAnalysis['level'] = 'seguro';
+
+      if (month.balance < 0) {
+        riskLevel = 'risco';
+        messages.push('Risco de saldo negativo neste mês');
+      }
+
+      const nearZeroThreshold = Math.max(month.totalEntries * 0.1, 50);
+
+      if (Math.abs(month.balance) <= nearZeroThreshold) {
+        if (riskLevel !== 'risco') {
+          riskLevel = 'atenção';
+        }
+
+        messages.push('Seu orçamento está apertado');
+      }
+
+      if (month.totalEntries > 0 && month.totalObligations / month.totalEntries > 0.8) {
+        if (riskLevel !== 'risco') {
+          riskLevel = 'atenção';
+        }
+
+        messages.push('Nível de despesas elevado');
+      }
+
+      if (previousMonth && month.balance < previousMonth.balance) {
+        if (riskLevel === 'seguro') {
+          riskLevel = 'atenção';
+        }
+
+        messages.push('Tendência de piora nos próximos meses');
+      }
+
+      if (messages.length === 0) {
+        messages.push('Situação estável para este mês');
+      }
+
+      riskMap.set(month.key, {
+        level: riskLevel,
+        messages
+      });
+    });
+
+    return riskMap;
+  }, [projection]);
 
   const handleSetOccurrenceStatus = async (
     sourceType: 'entry' | 'obligation',
@@ -1292,6 +1361,7 @@ export default function HomePage() {
               const nextMonthAlerts = nextMonthAlertsByKey.get(month.key) ?? [];
               const monthDetails = monthDetailsByKey.get(month.key);
               const monthPlannedVsActual = monthPlannedVsActualByKey.get(month.key);
+              const monthRisk = monthRiskByKey.get(month.key);
               const plannedBalance = monthPlannedVsActual?.plannedBalance ?? month.balance;
               const partialActualBalance = monthPlannedVsActual?.partialActualBalance ?? 0;
               const currentSituation = getCurrentMonthSituation(partialActualBalance, plannedBalance);
@@ -1336,6 +1406,17 @@ export default function HomePage() {
                   <ul>
                     <li>{currentSituation.message}</li>
                     <li>{expectedComparison.message}</li>
+                  </ul>
+                  <p>
+                    Classificação de risco:{' '}
+                    <span className={`status-pill ${getRiskTone(monthRisk?.level ?? 'seguro')}`}>
+                      {monthRisk?.level ?? 'seguro'}
+                    </span>
+                  </p>
+                  <ul>
+                    {(monthRisk?.messages ?? ['Situação estável para este mês']).map((riskMessage) => (
+                      <li key={`${month.key}-risk-${riskMessage}`}>{riskMessage}</li>
+                    ))}
                   </ul>
                   <p>Alertas automáticos básicos:</p>
                   <ul>
