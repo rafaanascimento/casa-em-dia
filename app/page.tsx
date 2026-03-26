@@ -29,6 +29,8 @@ type ObligationFormState = {
 };
 
 type EntryRow = {
+  id: string;
+  title: string;
   amount: number;
   recurrence_type: 'monthly' | 'one_time';
   start_date: string;
@@ -38,6 +40,7 @@ type EntryRow = {
 
 type ObligationRow = {
   id: string;
+  title: string;
   amount: number;
   type: 'fixa' | 'unica' | 'parcelada';
   recurrence_type: 'monthly' | 'one_time';
@@ -142,6 +145,14 @@ const isMonthInRange = (target: Date, startDate: string, endDate?: string | null
 const monthDiff = (startDate: string, target: Date) => {
   const start = getMonthStart(new Date(startDate));
   return (target.getFullYear() - start.getFullYear()) * 12 + (target.getMonth() - start.getMonth());
+};
+
+const doesEntryApplyToMonth = (entry: EntryRow, currentMonth: Date) => {
+  if (entry.recurrence_type === 'one_time') {
+    return monthDiff(entry.start_date, currentMonth) === 0;
+  }
+
+  return isMonthInRange(currentMonth, entry.start_date, entry.end_date);
 };
 
 const doesObligationApplyToMonth = (obligation: ObligationRow, currentMonth: Date) => {
@@ -253,12 +264,12 @@ export default function HomePage() {
     ] = await Promise.all([
         supabase
           .from('entries')
-          .select('amount, recurrence_type, start_date, end_date, block_type')
+          .select('id, title, amount, recurrence_type, start_date, end_date, block_type')
           .eq('family_id', currentFamilyId)
           .eq('is_active', true),
         supabase
           .from('obligations')
-          .select('id, amount, type, recurrence_type, total_installments, start_date, end_date, block_type')
+          .select('id, title, amount, type, recurrence_type, total_installments, start_date, end_date, block_type')
           .eq('family_id', currentFamilyId)
           .eq('is_active', true),
         supabase
@@ -350,10 +361,7 @@ export default function HomePage() {
       let block25Obligations = 0;
 
       entries.forEach((entry) => {
-        const shouldIncludeEntry =
-          entry.recurrence_type === 'one_time'
-            ? monthDiff(entry.start_date, currentMonth) === 0
-            : isMonthInRange(currentMonth, entry.start_date, entry.end_date);
+        const shouldIncludeEntry = doesEntryApplyToMonth(entry, currentMonth);
 
         if (!shouldIncludeEntry) {
           return;
@@ -459,6 +467,33 @@ export default function HomePage() {
 
     return alertsMap;
   }, [projection, obligations]);
+
+  const monthDetailsByKey = useMemo(() => {
+    const detailsMap = new Map<
+      string,
+      {
+        entries: EntryRow[];
+        obligations: ObligationRow[];
+      }
+    >();
+
+    projection.forEach((month) => {
+      const [year, monthNumber] = month.key.split('-').map(Number);
+      const currentDate = new Date(year, monthNumber - 1, 1);
+
+      const monthEntries = entries.filter((entry) => doesEntryApplyToMonth(entry, currentDate));
+      const monthObligations = obligations.filter((obligation) =>
+        doesObligationApplyToMonth(obligation, currentDate)
+      );
+
+      detailsMap.set(month.key, {
+        entries: monthEntries,
+        obligations: monthObligations
+      });
+    });
+
+    return detailsMap;
+  }, [projection, entries, obligations]);
 
   const handleCreateFamily = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -864,6 +899,7 @@ export default function HomePage() {
             {projection.map((month) => {
               const monthAlerts = getMonthAlerts(month);
               const nextMonthAlerts = nextMonthAlertsByKey.get(month.key) ?? [];
+              const monthDetails = monthDetailsByKey.get(month.key);
 
               return (
                 <article key={`summary-${month.key}`}>
@@ -894,6 +930,46 @@ export default function HomePage() {
                       <li>Sem mudanças relevantes para o próximo mês.</li>
                     )}
                   </ul>
+                  <details>
+                    <summary>Detalhamento do mês</summary>
+
+                    <p>Entradas do mês:</p>
+                    <ul>
+                      {(monthDetails?.entries ?? []).length > 0 ? (
+                        (monthDetails?.entries ?? []).map((entryItem) => (
+                          <li key={`${month.key}-entry-${entryItem.id}`}>
+                            {entryItem.title} — {currencyFormatter.format(Number(entryItem.amount))} (
+                            {entryItem.recurrence_type}, bloco {entryItem.block_type})
+                          </li>
+                        ))
+                      ) : (
+                        <li>Sem entradas neste mês.</li>
+                      )}
+                    </ul>
+
+                    <p>Despesas do mês:</p>
+                    <ul>
+                      {(monthDetails?.obligations ?? []).length > 0 ? (
+                        (monthDetails?.obligations ?? []).map((obligationItem) => (
+                          <li key={`${month.key}-obligation-${obligationItem.id}`}>
+                            {obligationItem.title} — {currencyFormatter.format(Number(obligationItem.amount))} (
+                            {obligationItem.type}
+                            {obligationItem.type === 'parcelada' && obligationItem.total_installments
+                              ? `, parcelada em ${obligationItem.total_installments}x`
+                              : ''}
+                            , bloco {obligationItem.block_type})
+                          </li>
+                        ))
+                      ) : (
+                        <li>Sem despesas neste mês.</li>
+                      )}
+                    </ul>
+
+                    <p>Totais do mês:</p>
+                    <p>Entradas: {currencyFormatter.format(month.totalEntries)}</p>
+                    <p>Despesas: {currencyFormatter.format(month.totalObligations)}</p>
+                    <p>Saldo: {currencyFormatter.format(month.balance)}</p>
+                  </details>
                 </article>
               );
             })}
