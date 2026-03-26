@@ -37,6 +37,7 @@ type EntryRow = {
 };
 
 type ObligationRow = {
+  id: string;
   amount: number;
   type: 'fixa' | 'unica' | 'parcelada';
   recurrence_type: 'monthly' | 'one_time';
@@ -143,6 +144,26 @@ const monthDiff = (startDate: string, target: Date) => {
   return (target.getFullYear() - start.getFullYear()) * 12 + (target.getMonth() - start.getMonth());
 };
 
+const doesObligationApplyToMonth = (obligation: ObligationRow, currentMonth: Date) => {
+  if (obligation.type === 'unica') {
+    return monthDiff(obligation.start_date, currentMonth) === 0;
+  }
+
+  if (obligation.type === 'parcelada') {
+    const installments = obligation.total_installments ?? 0;
+    const diff = monthDiff(obligation.start_date, currentMonth);
+
+    return (
+      installments > 0 &&
+      diff >= 0 &&
+      diff < installments &&
+      isMonthInRange(currentMonth, obligation.start_date, obligation.end_date)
+    );
+  }
+
+  return isMonthInRange(currentMonth, obligation.start_date, obligation.end_date);
+};
+
 const getMonthStatus = (balance: number) => {
   if (balance > 0) {
     return 'positivo';
@@ -237,7 +258,7 @@ export default function HomePage() {
           .eq('is_active', true),
         supabase
           .from('obligations')
-          .select('amount, type, recurrence_type, total_installments, start_date, end_date, block_type')
+          .select('id, amount, type, recurrence_type, total_installments, start_date, end_date, block_type')
           .eq('family_id', currentFamilyId)
           .eq('is_active', true),
         supabase
@@ -349,21 +370,7 @@ export default function HomePage() {
       });
 
       obligations.forEach((obligation) => {
-        let shouldIncludeObligation = false;
-
-        if (obligation.type === 'unica') {
-          shouldIncludeObligation = monthDiff(obligation.start_date, currentMonth) === 0;
-        } else if (obligation.type === 'parcelada') {
-          const installments = obligation.total_installments ?? 0;
-          const diff = monthDiff(obligation.start_date, currentMonth);
-          shouldIncludeObligation =
-            installments > 0 &&
-            diff >= 0 &&
-            diff < installments &&
-            isMonthInRange(currentMonth, obligation.start_date, obligation.end_date);
-        } else {
-          shouldIncludeObligation = isMonthInRange(currentMonth, obligation.start_date, obligation.end_date);
-        }
+        const shouldIncludeObligation = doesObligationApplyToMonth(obligation, currentMonth);
 
         if (!shouldIncludeObligation) {
           return;
@@ -398,6 +405,60 @@ export default function HomePage() {
       };
     });
   }, [entries, obligations]);
+
+  const nextMonthAlertsByKey = useMemo(() => {
+    const alertsMap = new Map<string, string[]>();
+
+    projection.forEach((currentMonth, index) => {
+      const nextMonth = projection[index + 1];
+
+      if (!nextMonth) {
+        alertsMap.set(currentMonth.key, []);
+        return;
+      }
+
+      const alerts: string[] = [];
+
+      if (nextMonth.totalObligations < currentMonth.totalObligations) {
+        alerts.push('Próximo mês mais leve');
+      } else if (nextMonth.totalObligations > currentMonth.totalObligations) {
+        alerts.push('Próximo mês mais pesado');
+      }
+
+      if (nextMonth.balance > currentMonth.balance) {
+        alerts.push('Saldo melhora no próximo mês');
+      } else if (nextMonth.balance < currentMonth.balance) {
+        alerts.push('Saldo piora no próximo mês');
+      }
+
+      const [currentYear, currentMonthNumber] = currentMonth.key.split('-').map(Number);
+      const [nextYear, nextMonthNumber] = nextMonth.key.split('-').map(Number);
+      const currentDate = new Date(currentYear, currentMonthNumber - 1, 1);
+      const nextDate = new Date(nextYear, nextMonthNumber - 1, 1);
+
+      const currentObligationIds = new Set(
+        obligations.filter((obligation) => doesObligationApplyToMonth(obligation, currentDate)).map((item) => item.id)
+      );
+      const nextObligationIds = new Set(
+        obligations.filter((obligation) => doesObligationApplyToMonth(obligation, nextDate)).map((item) => item.id)
+      );
+
+      const expenseEnded = [...currentObligationIds].some((id) => !nextObligationIds.has(id));
+      const expenseStarted = [...nextObligationIds].some((id) => !currentObligationIds.has(id));
+
+      if (expenseEnded) {
+        alerts.push('Uma despesa deixa de existir no mês seguinte');
+      }
+
+      if (expenseStarted) {
+        alerts.push('Uma nova despesa começa a aparecer no mês seguinte');
+      }
+
+      alertsMap.set(currentMonth.key, alerts);
+    });
+
+    return alertsMap;
+  }, [projection, obligations]);
 
   const handleCreateFamily = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -802,6 +863,7 @@ export default function HomePage() {
             <h3>Resumos mensais</h3>
             {projection.map((month) => {
               const monthAlerts = getMonthAlerts(month);
+              const nextMonthAlerts = nextMonthAlertsByKey.get(month.key) ?? [];
 
               return (
                 <article key={`summary-${month.key}`}>
@@ -820,6 +882,16 @@ export default function HomePage() {
                       monthAlerts.map((alert) => <li key={`${month.key}-${alert}`}>{alert}</li>)
                     ) : (
                       <li>Sem alertas para este mês.</li>
+                    )}
+                  </ul>
+                  <p>Mudanças para o próximo mês:</p>
+                  <ul>
+                    {nextMonthAlerts.length > 0 ? (
+                      nextMonthAlerts.map((alert) => (
+                        <li key={`${month.key}-next-${alert}`}>{alert}</li>
+                      ))
+                    ) : (
+                      <li>Sem mudanças relevantes para o próximo mês.</li>
                     )}
                   </ul>
                 </article>
