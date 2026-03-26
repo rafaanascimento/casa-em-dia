@@ -95,12 +95,12 @@ const currencyFormatter = new Intl.NumberFormat('pt-BR', {
 
 const getMonthStart = (date: Date) => new Date(date.getFullYear(), date.getMonth(), 1);
 
-<<<<<<< codex/implement-initial-family-context-for-casa-em-dia-es3i2b
+
 const addMonths = (date: Date, months: number) => new Date(date.getFullYear(), date.getMonth() + months, 1);
-=======
+
 const addMonths = (date: Date, months: number) =>
   new Date(date.getFullYear(), date.getMonth() + months, 1);
->>>>>>> main
+
 
 const isMonthInRange = (target: Date, startDate: string, endDate?: string | null) => {
   const startMonth = getMonthStart(new Date(startDate));
@@ -122,7 +122,7 @@ const monthDiff = (startDate: string, target: Date) => {
   return (target.getFullYear() - start.getFullYear()) * 12 + (target.getMonth() - start.getMonth());
 };
 
-<<<<<<< codex/implement-initial-family-context-for-casa-em-dia-es3i2b
+
 const getMonthStatus = (balance: number) => {
   if (balance > 0) {
     return 'positivo';
@@ -147,8 +147,7 @@ const getBlockStatus = (balance: number) => {
   return 'bloco apertado';
 };
 
-=======
->>>>>>> main
+
 export default function HomePage() {
   const router = useRouter();
 
@@ -157,22 +156,21 @@ export default function HomePage() {
   const [isSavingEntry, setIsSavingEntry] = useState(false);
   const [isSavingObligation, setIsSavingObligation] = useState(false);
   const [isLoadingProjectionData, setIsLoadingProjectionData] = useState(false);
-<<<<<<< codex/implement-initial-family-context-for-casa-em-dia-es3i2b
-=======
 
->>>>>>> main
+
+
   const [userId, setUserId] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [familyId, setFamilyId] = useState('');
   const [familyName, setFamilyName] = useState('');
   const [hasFamilyMembership, setHasFamilyMembership] = useState(false);
-<<<<<<< codex/implement-initial-family-context-for-casa-em-dia-es3i2b
-  const [projectionViewMode, setProjectionViewMode] = useState<'monthly' | 'blocks'>('monthly');
-=======
 
   const [projectionViewMode, setProjectionViewMode] = useState<'monthly' | 'blocks'>('monthly');
 
->>>>>>> main
+
+  const [projectionViewMode, setProjectionViewMode] = useState<'monthly' | 'blocks'>('monthly');
+
+
   const [entryForm, setEntryForm] = useState<EntryFormState>(initialEntryForm);
   const [obligationForm, setObligationForm] = useState<ObligationFormState>(initialObligationForm);
   const [entries, setEntries] = useState<EntryRow[]>([]);
@@ -298,25 +296,24 @@ export default function HomePage() {
         } else if (obligation.type === 'parcelada') {
           const installments = obligation.total_installments ?? 0;
           const diff = monthDiff(obligation.start_date, currentMonth);
-<<<<<<< codex/implement-initial-family-context-for-casa-em-dia-es3i2b
-=======
 
->>>>>>> main
+
+
           shouldIncludeObligation =
             installments > 0 &&
             diff >= 0 &&
             diff < installments &&
             isMonthInRange(currentMonth, obligation.start_date, obligation.end_date);
         } else {
-<<<<<<< codex/implement-initial-family-context-for-casa-em-dia-es3i2b
+
           shouldIncludeObligation = isMonthInRange(currentMonth, obligation.start_date, obligation.end_date);
-=======
+
           shouldIncludeObligation = isMonthInRange(
             currentMonth,
             obligation.start_date,
             obligation.end_date
           );
->>>>>>> main
+
         }
 
         if (!shouldIncludeObligation) {
@@ -518,10 +515,9 @@ export default function HomePage() {
 
       <section>
         <h2>Projeção mensal básica</h2>
-<<<<<<< codex/implement-initial-family-context-for-casa-em-dia-es3i2b
-=======
 
->>>>>>> main
+
+
         <div>
           <button type="button" onClick={() => setProjectionViewMode('monthly')}>
             Visão do mês
@@ -584,7 +580,7 @@ export default function HomePage() {
             </tbody>
           </table>
         ) : null}
-<<<<<<< codex/implement-initial-family-context-for-casa-em-dia-es3i2b
+
 
         {!isLoadingProjectionData ? (
           <section>
@@ -604,8 +600,7 @@ export default function HomePage() {
             ))}
           </section>
         ) : null}
-=======
->>>>>>> main
+
       </section>
 
       <section>
@@ -760,12 +755,12 @@ export default function HomePage() {
                 setObligationForm({
                   ...obligationForm,
                   type: event.target.value as ObligationFormState['type'],
-<<<<<<< codex/implement-initial-family-context-for-casa-em-dia-es3i2b
+
                   totalInstallments: event.target.value === 'parcelada' ? obligationForm.totalInstallments : ''
-=======
+
                   totalInstallments:
                     event.target.value === 'parcelada' ? obligationForm.totalInstallments : ''
->>>>>>> main
+
                 })
               }
             >
@@ -827,13 +822,13 @@ export default function HomePage() {
               id="obligationEndDate"
               type="date"
               value={obligationForm.endDate}
-<<<<<<< codex/implement-initial-family-context-for-casa-em-dia-es3i2b
+
               onChange={(event) => setObligationForm({ ...obligationForm, endDate: event.target.value })}
-=======
+
               onChange={(event) =>
                 setObligationForm({ ...obligationForm, endDate: event.target.value })
               }
->>>>>>> main
+
             />
           </div>
 
