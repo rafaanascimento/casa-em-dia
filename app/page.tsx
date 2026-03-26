@@ -117,6 +117,8 @@ type MonthPlannedVsActual = {
 
 const PROJECTION_MONTHS = 6;
 const MONTH_KEY_REGEX = /^(\d{4})-(\d{1,2})$/;
+const PROJECTION_VIEW_MODE_STORAGE_KEY = 'casa-em-dia:projection-view-mode';
+const EXPANDED_MONTH_KEYS_STORAGE_KEY = 'casa-em-dia:expanded-month-keys';
 
 const initialEntryForm: EntryFormState = {
   title: '',
@@ -381,6 +383,54 @@ export default function HomePage() {
   const [error, setError] = useState('');
   const [entrySuccessMessage, setEntrySuccessMessage] = useState('');
   const [obligationSuccessMessage, setObligationSuccessMessage] = useState('');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const storedProjectionViewMode = window.localStorage.getItem(PROJECTION_VIEW_MODE_STORAGE_KEY);
+
+    if (storedProjectionViewMode === 'monthly' || storedProjectionViewMode === 'blocks') {
+      setProjectionViewMode(storedProjectionViewMode);
+    }
+
+    const storedExpandedMonthKeys = window.localStorage.getItem(EXPANDED_MONTH_KEYS_STORAGE_KEY);
+
+    if (!storedExpandedMonthKeys) {
+      return;
+    }
+
+    try {
+      const parsedExpandedMonthKeys = JSON.parse(storedExpandedMonthKeys);
+
+      if (Array.isArray(parsedExpandedMonthKeys)) {
+        const validMonthKeys = parsedExpandedMonthKeys.filter(
+          (monthKey): monthKey is string => typeof monthKey === 'string' && Boolean(normalizeMonthKey(monthKey))
+        );
+
+        setExpandedMonthKeys(validMonthKeys);
+      }
+    } catch (storageError) {
+      console.error('Não foi possível recuperar meses expandidos do armazenamento local.', storageError);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.localStorage.setItem(PROJECTION_VIEW_MODE_STORAGE_KEY, projectionViewMode);
+  }, [projectionViewMode]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.localStorage.setItem(EXPANDED_MONTH_KEYS_STORAGE_KEY, JSON.stringify(expandedMonthKeys));
+  }, [expandedMonthKeys]);
 
   const loadFinancialData = async (currentFamilyId: string) => {
     setIsLoadingProjectionData(true);
