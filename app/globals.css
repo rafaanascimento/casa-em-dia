@@ -44,6 +44,15 @@ body {
   box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
 }
 
+.pending-alerts {
+  border-left: 4px solid #d97706;
+  background: #fffbeb;
+}
+
+.pending-alerts ul {
+  margin: 0;
+}
+
 h2,
 h3,
 h4 {
