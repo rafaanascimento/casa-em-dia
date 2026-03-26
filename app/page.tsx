@@ -33,10 +33,9 @@ type EntryRow = {
   recurrence_type: 'monthly' | 'one_time';
   start_date: string;
   end_date: string | null;
-<<<<<<< codex/implement-initial-family-context-for-casa-em-dia-erkjel
+
   block_type: '10' | '25';
-=======
->>>>>>> main
+
 };
 
 type ObligationRow = {
@@ -54,8 +53,7 @@ type BlockProjection = {
   entries: number;
   obligations: number;
   balance: number;
-=======
->>>>>>> main
+
 };
 
 type ProjectionMonth = {
@@ -64,11 +62,10 @@ type ProjectionMonth = {
   totalEntries: number;
   totalObligations: number;
   balance: number;
-<<<<<<< codex/implement-initial-family-context-for-casa-em-dia-erkjel
+
   block10: BlockProjection;
   block25: BlockProjection;
-=======
->>>>>>> main
+
 };
 
 const PROJECTION_MONTHS = 6;
@@ -140,8 +137,7 @@ export default function HomePage() {
   const [hasFamilyMembership, setHasFamilyMembership] = useState(false);
 <<<<<<< codex/implement-initial-family-context-for-casa-em-dia-erkjel
   const [projectionViewMode, setProjectionViewMode] = useState<'monthly' | 'blocks'>('monthly');
-=======
->>>>>>> main
+
   const [entryForm, setEntryForm] = useState<EntryFormState>(initialEntryForm);
   const [obligationForm, setObligationForm] = useState<ObligationFormState>(initialObligationForm);
   const [entries, setEntries] = useState<EntryRow[]>([]);
@@ -157,20 +153,20 @@ export default function HomePage() {
       await Promise.all([
         supabase
           .from('entries')
-<<<<<<< codex/implement-initial-family-context-for-casa-em-dia-erkjel
+
           .select('amount, recurrence_type, start_date, end_date, block_type')
-=======
+
           .select('amount, recurrence_type, start_date, end_date')
->>>>>>> main
+
           .eq('family_id', currentFamilyId)
           .eq('is_active', true),
         supabase
           .from('obligations')
-<<<<<<< codex/implement-initial-family-context-for-casa-em-dia-erkjel
+
           .select('amount, type, recurrence_type, total_installments, start_date, end_date, block_type')
-=======
+
           .select('amount, type, recurrence_type, total_installments, start_date, end_date')
->>>>>>> main
+
           .eq('family_id', currentFamilyId)
           .eq('is_active', true)
       ]);
@@ -240,7 +236,7 @@ export default function HomePage() {
         year: 'numeric'
       });
 
-<<<<<<< codex/implement-initial-family-context-for-casa-em-dia-erkjel
+
       let totalEntries = 0;
       let totalObligations = 0;
       let block10Entries = 0;
@@ -298,7 +294,7 @@ export default function HomePage() {
           block25Obligations += amount;
         }
       });
-=======
+
       const totalEntries = entries.reduce((sum, entry) => {
         if (entry.recurrence_type === 'one_time') {
           const diff = monthDiff(entry.start_date, currentMonth);
@@ -340,14 +336,14 @@ export default function HomePage() {
 
         return sum;
       }, 0);
->>>>>>> main
+
 
       return {
         key: `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`,
         label: monthLabel,
         totalEntries,
         totalObligations,
-<<<<<<< codex/implement-initial-family-context-for-casa-em-dia-erkjel
+
         balance: totalEntries - totalObligations,
         block10: {
           entries: block10Entries,
@@ -359,9 +355,9 @@ export default function HomePage() {
           obligations: block25Obligations,
           balance: block25Entries - block25Obligations
         }
-=======
+
         balance: totalEntries - totalObligations
->>>>>>> main
+
       };
     });
   }, [entries, obligations]);
@@ -531,7 +527,7 @@ export default function HomePage() {
 
       <section>
         <h2>Projeção mensal básica</h2>
-<<<<<<< codex/implement-initial-family-context-for-casa-em-dia-erkjel
+
         <div>
           <button type="button" onClick={() => setProjectionViewMode('monthly')}>
             Visão do mês
@@ -544,11 +540,11 @@ export default function HomePage() {
         {isLoadingProjectionData ? <p>Carregando projeção...</p> : null}
 
         {!isLoadingProjectionData && projectionViewMode === 'monthly' ? (
-=======
+
         {isLoadingProjectionData ? <p>Carregando projeção...</p> : null}
 
         {!isLoadingProjectionData ? (
->>>>>>> main
+
           <table>
             <thead>
               <tr>
@@ -570,7 +566,6 @@ export default function HomePage() {
             </tbody>
           </table>
         ) : null}
-<<<<<<< codex/implement-initial-family-context-for-casa-em-dia-erkjel
 
         {!isLoadingProjectionData && projectionViewMode === 'blocks' ? (
           <table>
@@ -600,8 +595,7 @@ export default function HomePage() {
             </tbody>
           </table>
         ) : null}
-=======
->>>>>>> main
+
       </section>
 
       <section>
