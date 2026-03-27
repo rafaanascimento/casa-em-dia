@@ -1518,7 +1518,7 @@ export default function HomePage() {
             <p>Sem dados disponíveis para o mês atual.</p>
           )}
         </section>
-        <section className="card">
+        <section className="card executive-card">
           <h2>Resumo executivo</h2>
           <p>
             Situação do mês:{' '}
@@ -2538,7 +2538,7 @@ export default function HomePage() {
                 setLaunchTarget('entry');
               }}
             >
-              + Entrada
+              Nova entrada
             </button>
             <button
               type="button"
@@ -2547,7 +2547,7 @@ export default function HomePage() {
                 setLaunchTarget('obligation');
               }}
             >
-              + Despesa
+              Nova despesa
             </button>
           </div>
         ) : null}
