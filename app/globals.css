@@ -364,6 +364,21 @@ form {
   gap: var(--space-3);
 }
 
+.form-block-title {
+  margin: 0;
+  font-size: 0.76rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.form-grid {
+  display: grid;
+  gap: 0.75rem;
+
+}
+
 form > div {
   display: grid;
   gap: var(--space-1);
