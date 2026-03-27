@@ -99,6 +99,21 @@ body {
   gap: var(--space-1);
 }
 
+.section-nav {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.section-nav button {
+  width: 100%;
+}
+
+.section-nav button.is-section-active {
+  background: var(--color-accent-strong);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.2);
+}
+
 .dashboard-month-label {
   margin-bottom: var(--space-2);
   font-weight: 600;
@@ -383,6 +398,10 @@ tr.is-safe-month {
 }
 
 @media (min-width: 901px) {
+  .section-nav {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
   .current-month-blocks-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

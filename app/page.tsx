@@ -120,6 +120,8 @@ type MonthRiskAnalysis = {
   messages: string[];
 };
 
+type DashboardSection = 'home' | 'lancamentos' | 'projecao' | 'perfil';
+
 const PROJECTION_MONTHS = 6;
 const MONTH_KEY_REGEX = /^(\d{4})-(\d{1,2})$/;
 const PROJECTION_VIEW_MODE_STORAGE_KEY = 'casa-em-dia:projection-view-mode';
@@ -394,6 +396,7 @@ export default function HomePage() {
   const [familyName, setFamilyName] = useState('');
   const [hasFamilyMembership, setHasFamilyMembership] = useState(false);
   const [projectionViewMode, setProjectionViewMode] = useState<'monthly' | 'blocks'>('monthly');
+  const [activeSection, setActiveSection] = useState<DashboardSection>('home');
   const [entryForm, setEntryForm] = useState<EntryFormState>(initialEntryForm);
   const [obligationForm, setObligationForm] = useState<ObligationFormState>(initialObligationForm);
   const [entries, setEntries] = useState<EntryRow[]>([]);
@@ -1359,8 +1362,37 @@ export default function HomePage() {
         <h1 className="app-title">Casa em Dia</h1>
         <p>Você está autenticado e já possui vínculo com uma família.</p>
       </header>
-      {userEmail ? <p>Usuário: {userEmail}</p> : null}
-      {currentMonthPendingMessages.length > 0 ? (
+      <nav className="card section-nav" aria-label="Navegação principal">
+        <button
+          type="button"
+          className={activeSection === 'home' ? 'is-section-active' : ''}
+          onClick={() => setActiveSection('home')}
+        >
+          Home
+        </button>
+        <button
+          type="button"
+          className={activeSection === 'lancamentos' ? 'is-section-active' : ''}
+          onClick={() => setActiveSection('lancamentos')}
+        >
+          Lançamentos
+        </button>
+        <button
+          type="button"
+          className={activeSection === 'projecao' ? 'is-section-active' : ''}
+          onClick={() => setActiveSection('projecao')}
+        >
+          Projeção
+        </button>
+        <button
+          type="button"
+          className={activeSection === 'perfil' ? 'is-section-active' : ''}
+          onClick={() => setActiveSection('perfil')}
+        >
+          Perfil/Menu
+        </button>
+      </nav>
+      {activeSection === 'home' && currentMonthPendingMessages.length > 0 ? (
         <section className="card pending-alerts">
           <h2 className="pending-alerts-title">Pendências do mês atual</h2>
           <ul className="pending-alerts-list">
@@ -1372,6 +1404,8 @@ export default function HomePage() {
       ) : null}
 
       <div className="content-grid">
+        {activeSection === 'home' ? (
+        <>
         <section className="card">
           <h2>Painel do mês atual</h2>
           {currentMonthProjection ? (
@@ -1478,7 +1512,36 @@ export default function HomePage() {
             <p>Sem dados disponíveis para o mês atual.</p>
           )}
         </section>
+        <section className="card">
+          <h2>Resumo executivo</h2>
+          <p>
+            Situação do mês:{' '}
+            <span className={`status-pill ${getRiskTone(currentMonthRisk.level)}`}>
+              {getRiskBadgeLabel(currentMonthRisk.level)}
+            </span>
+          </p>
+          <ul>
+            {currentMonthRisk.messages.map((message) => (
+              <li key={`current-risk-${message}`}>{message}</li>
+            ))}
+          </ul>
+          <p>
+            Saldo planejado:{' '}
+            <span className={`money-value ${getBalanceTone(currentMonthPlannedVsActual?.plannedBalance ?? 0)}`}>
+              {currencyFormatter.format(currentMonthPlannedVsActual?.plannedBalance ?? 0)}
+            </span>
+          </p>
+          <p>
+            Saldo parcial realizado:{' '}
+            <span className={`money-value ${getBalanceTone(currentMonthPlannedVsActual?.partialActualBalance ?? 0)}`}>
+              {currencyFormatter.format(currentMonthPlannedVsActual?.partialActualBalance ?? 0)}
+            </span>
+          </p>
+        </section>
+        </>
+        ) : null}
 
+        {activeSection === 'projecao' ? (
         <section className="card">
         <h2>Projeção completa (secundária)</h2>
         <p>Acompanhe os próximos meses quando precisar de uma visão detalhada.</p>
@@ -1790,7 +1853,10 @@ export default function HomePage() {
         ) : null}
         </details>
         </section>
+        ) : null}
 
+        {activeSection === 'lancamentos' ? (
+        <>
         <section className="card" id="entry-create-section">
         <h2>Cadastrar entrada</h2>
         <form onSubmit={handleCreateEntry}>
@@ -2441,11 +2507,20 @@ export default function HomePage() {
             </tbody>
           </table>
         </section>
-      </div>
+        </>
+        ) : null}
 
-      <button type="button" onClick={handleLogout}>
-        Sair
-      </button>
+        {activeSection === 'perfil' ? (
+          <section className="card">
+            <h2>Perfil/Menu</h2>
+            <p>Usuário autenticado: {userEmail || 'Não identificado'}</p>
+            <p>Área preparada para futura foto de perfil e configurações.</p>
+            <button type="button" onClick={handleLogout}>
+              Sair
+            </button>
+          </section>
+        ) : null}
+      </div>
 
       {error ? <p>{error}</p> : null}
     </main>
