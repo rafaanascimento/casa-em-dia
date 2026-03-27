@@ -734,6 +734,39 @@ export default function HomePage() {
   const getOccurrenceStatus = (sourceType: 'entry' | 'obligation', sourceId: string, monthKey: string) =>
     getOccurrence(sourceType, sourceId, monthKey)?.status ?? 'pending';
 
+  const currentMonthKey = useMemo(() => {
+    const currentDate = new Date();
+    return `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+  }, []);
+
+  const currentMonthPendingMessages = useMemo(() => {
+    const currentMonthDetails = monthDetailsByKey.get(currentMonthKey);
+    const currentMonthEntries = currentMonthDetails?.entries ?? [];
+    const currentMonthObligations = currentMonthDetails?.obligations ?? [];
+
+    const hasPendingEntries = currentMonthEntries.some(
+      (entryItem) => getOccurrenceStatus('entry', entryItem.id, currentMonthKey) === 'pending'
+    );
+    const hasPendingObligations = currentMonthObligations.some(
+      (obligationItem) => getOccurrenceStatus('obligation', obligationItem.id, currentMonthKey) === 'pending'
+    );
+    const messages: string[] = [];
+
+    if (hasPendingEntries) {
+      messages.push('Você possui entradas não recebidas neste mês');
+    }
+
+    if (hasPendingObligations) {
+      messages.push('Você possui despesas não pagas neste mês');
+    }
+
+    if (hasPendingEntries || hasPendingObligations) {
+      messages.push('Existem pendências financeiras no mês atual');
+    }
+
+    return messages;
+  }, [monthDetailsByKey, currentMonthKey, monthlyOccurrences, familyId]);
+
   const monthPlannedVsActualByKey = useMemo(() => {
     const plannedVsActualMap = new Map<string, MonthPlannedVsActual>();
 
@@ -838,11 +871,6 @@ export default function HomePage() {
 
     return riskMap;
   }, [projection]);
-
-  const currentMonthKey = useMemo(() => {
-    const currentDate = new Date();
-    return `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
-  }, []);
 
   const handleSetOccurrenceStatus = async (
     sourceType: 'entry' | 'obligation',
@@ -1299,6 +1327,16 @@ export default function HomePage() {
         <p>Você está autenticado e já possui vínculo com uma família.</p>
       </header>
       {userEmail ? <p>Usuário: {userEmail}</p> : null}
+      {currentMonthPendingMessages.length > 0 ? (
+        <section className="card pending-alerts">
+          <h2 className="pending-alerts-title">Pendências do mês atual</h2>
+          <ul className="pending-alerts-list">
+            {currentMonthPendingMessages.map((message) => (
+              <li key={message}>{message}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <div className="content-grid">
         <section className="card">
@@ -1344,9 +1382,9 @@ export default function HomePage() {
                       {getRiskBadgeLabel(monthRiskByKey.get(month.key)?.level ?? 'seguro')}
                     </span>
                   </td>
-                  <td>{currencyFormatter.format(month.totalEntries)}</td>
-                  <td>{currencyFormatter.format(month.totalObligations)}</td>
-                  <td>{currencyFormatter.format(month.balance)}</td>
+                  <td><span className="money-value">{currencyFormatter.format(month.totalEntries)}</span></td>
+                  <td><span className="money-value">{currencyFormatter.format(month.totalObligations)}</span></td>
+                  <td><span className={`money-value ${getBalanceTone(month.balance)}`}>{currencyFormatter.format(month.balance)}</span></td>
                   <td>{getMonthAlerts(month).join(' • ') || 'Sem alertas'}</td>
                 </tr>
               ))}
@@ -1387,12 +1425,12 @@ export default function HomePage() {
                       {getRiskBadgeLabel(monthRiskByKey.get(month.key)?.level ?? 'seguro')}
                     </span>
                   </td>
-                  <td>{currencyFormatter.format(month.block10.entries)}</td>
-                  <td>{currencyFormatter.format(month.block10.obligations)}</td>
-                  <td>{currencyFormatter.format(month.block10.balance)}</td>
-                  <td>{currencyFormatter.format(month.block25.entries)}</td>
-                  <td>{currencyFormatter.format(month.block25.obligations)}</td>
-                  <td>{currencyFormatter.format(month.block25.balance)}</td>
+                  <td><span className="money-value">{currencyFormatter.format(month.block10.entries)}</span></td>
+                  <td><span className="money-value">{currencyFormatter.format(month.block10.obligations)}</span></td>
+                  <td><span className={`money-value ${getBalanceTone(month.block10.balance)}`}>{currencyFormatter.format(month.block10.balance)}</span></td>
+                  <td><span className="money-value">{currencyFormatter.format(month.block25.entries)}</span></td>
+                  <td><span className="money-value">{currencyFormatter.format(month.block25.obligations)}</span></td>
+                  <td><span className={`money-value ${getBalanceTone(month.block25.balance)}`}>{currencyFormatter.format(month.block25.balance)}</span></td>
                   <td>{getMonthAlerts(month).join(' • ') || 'Sem alertas'}</td>
                 </tr>
               ))}
