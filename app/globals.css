@@ -57,6 +57,38 @@ body {
   gap: var(--space-1);
 }
 
+
+.brand-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.9rem;
+  align-items: center;
+}
+
+.brand-logo-placeholder {
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 0.9rem;
+  display: grid;
+  place-items: center;
+  background: var(--pill-accent-bg);
+  color: var(--pill-accent-text);
+  font-size: 1.3rem;
+  border: 1px solid #c7d2fe;
+}
+
+.brand-greeting {
+  margin: 0;
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: #6366f1;
+}
+
+.brand-subtitle {
+  margin: 0.15rem 0 0;
+  font-size: 0.88rem;
+}
+
 .app-brand-kicker {
   margin: 0;
   font-size: 0.78rem;
@@ -64,6 +96,7 @@ body {
   letter-spacing: 0.08em;
   color: var(--color-accent);
   font-weight: 700;
+
 }
 
 .app-title {
@@ -71,11 +104,13 @@ body {
   font-size: 2rem;
   line-height: 1.15;
   color: var(--text-primary);
+
 }
 
 .app-brand-subtitle {
   margin: 0;
   font-size: 0.95rem;
+
 }
 
 .content-grid {
@@ -98,6 +133,72 @@ body {
 
 .pending-alerts {
   border-left: 5px solid var(--color-danger);
+
+  background: #fff;
+}
+
+.pending-alerts-title {
+  margin: 0 0 var(--space-2);
+  font-size: 1.05rem;
+  color: var(--pill-danger-text);
+}
+
+.pending-alerts-list {
+  margin: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.dashboard-month-label {
+  margin-bottom: var(--space-2);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.current-month-blocks {
+  margin-top: var(--space-4);
+}
+
+.current-month-blocks-grid {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: 1fr;
+}
+
+.month-block-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  background: #f8fafc;
+}
+
+.month-block-card p {
+  margin: 0.25rem 0;
+}
+
+.section-separator {
+  height: 1px;
+  width: 100%;
+  background: #e5e7eb;
+  margin: 0.3rem 0;
+}
+
+.main-balance-value {
+  font-size: 2.1rem;
+  line-height: 1.15;
+  margin-left: 0.35rem;
+  color: var(--color-accent);
+}
+
+.mobile-list-grid {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.mobile-list-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #fff;
   background: #fff;
 }
 
@@ -239,6 +340,13 @@ body {
 
 .fab-actions {
   display: grid;
+  gap: 0.45rem;
+}
+
+.fab-actions button {
+  border-radius: 999px;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.82rem;
   gap: 0.55rem;
 }
 
@@ -347,6 +455,7 @@ p {
   flex-wrap: wrap;
   gap: var(--space-2);
   margin-bottom: var(--space-3);
+
 }
 
 .quick-actions-grid {
@@ -363,6 +472,7 @@ p {
   justify-content: center;
   gap: 0.45rem;
   min-height: 3.2rem;
+
 }
 
 button {
@@ -384,7 +494,11 @@ button:hover:not(:disabled) {
 }
 
 button:active:not(:disabled) {
+
+  transform: translateY(0);
+
   transform: scale(0.98);
+
   filter: brightness(0.98);
 }
 
@@ -396,6 +510,7 @@ button:disabled {
 form {
   display: grid;
   gap: var(--space-3);
+
 }
 
 .modern-form {
@@ -423,16 +538,19 @@ form {
 .form-grid {
   display: grid;
   gap: 0.75rem;
+
 }
 
 form > div {
   display: grid;
   gap: var(--space-1);
+
 }
 
 label {
   font-size: 0.8rem;
   font-weight: 600;
+
 }
 
 input,
@@ -461,7 +579,15 @@ input[type='checkbox'] {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   padding: 0.8rem;
+
   background: #fff;
+  color: var(--text-primary);
+}
+
+input:focus,
+select:focus {
+  outline: 2px solid rgba(79, 70, 229, 0.22);
+  border-color: var(--color-accent);
 }
 
 input:focus,
@@ -630,6 +756,14 @@ tr.is-safe-month {
   }
 
   .main-balance-value {
+
+    font-size: 1.9rem;
+  }
+
+  .brand-logo-placeholder {
+    width: 2.3rem;
+    height: 2.3rem;
+    font-size: 1.2rem;
     font-size: 2.1rem;
   }
 
@@ -646,6 +780,7 @@ tr.is-safe-month {
   .mobile-list-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
 
   .form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));

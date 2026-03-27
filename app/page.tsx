@@ -766,6 +766,20 @@ export default function HomePage() {
     return `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
   }, []);
 
+  const greetingMessage = useMemo(() => {
+    const currentHour = new Date().getHours();
+
+    if (currentHour < 12) {
+      return 'Bom dia';
+    }
+
+    if (currentHour < 18) {
+      return 'Boa tarde';
+    }
+
+    return 'Boa noite';
+  }, []);
+
   const currentMonthPendingMessages = useMemo(() => {
     const currentMonthDetails = monthDetailsByKey.get(currentMonthKey);
     const currentMonthEntries = currentMonthDetails?.entries ?? [];
@@ -1383,9 +1397,19 @@ export default function HomePage() {
   return (
     <main className="app-shell">
       <header className="app-header card">
-        <p className="app-brand-kicker">Planejamento financeiro familiar</p>
-        <h1 className="app-title">Casa em Dia</h1>
-        <p className="app-brand-subtitle">Seu painel diário de entradas, despesas e saldo.</p>
+        <div className="brand-row">
+          <div className="brand-logo-placeholder" aria-hidden="true">
+            🏠
+          </div>
+          <div>
+            <p className="brand-greeting">
+              {greetingMessage}
+              {userEmail ? `, ${userEmail.split('@')[0]}` : ''}.
+            </p>
+            <h1 className="app-title">Casa em Dia</h1>
+            <p className="brand-subtitle">Seu painel financeiro familiar</p>
+          </div>
+        </div>
       </header>
       {activeSection === 'home' && currentMonthPendingMessages.length > 0 ? (
         <section className="card pending-alerts">
@@ -1401,40 +1425,41 @@ export default function HomePage() {
       <div className="content-grid">
         {activeSection === 'home' ? (
         <>
-        <section className="card home-highlight-card">
-          <h2>Resumo do mês</h2>
+        <section className="card">
+          <h2>Painel do mês atual</h2>
           {currentMonthProjection ? (
             <>
-              <div className="dashboard-hero">
-                <div className="dashboard-hero-header">
-                  <p className="dashboard-month-label">{currentMonthProjection.label}</p>
-                  <span className={`status-pill ${getRiskTone(currentMonthRisk.level)}`}>
-                    {getRiskBadgeLabel(currentMonthRisk.level)}
-                  </span>
-                </div>
-                <p className="dashboard-balance-label">Saldo do mês</p>
-                <p className={`money-value main-balance-value ${getBalanceTone(currentMonthProjection.balance)}`}>
+              <p className="dashboard-month-label">
+                {currentMonthProjection.label}
+                <span className={`status-pill ${getRiskTone(currentMonthRisk.level)}`}>
+                  {getRiskBadgeLabel(currentMonthRisk.level)}
+                </span>
+              </p>
+              <p>
+                Saldo do mês:{' '}
+                <span className={`money-value main-balance-value ${getBalanceTone(currentMonthProjection.balance)}`}>
                   {currencyFormatter.format(currentMonthProjection.balance)}
-                </p>
-                <div className="hero-metrics-grid">
-                  <article className="hero-metric-card">
-                    <span className="hero-metric-label">Entradas</span>
-                    <span className="money-value">{currencyFormatter.format(currentMonthProjection.totalEntries)}</span>
-                  </article>
-                  <article className="hero-metric-card">
-                    <span className="hero-metric-label">Despesas</span>
-                    <span className="money-value">{currencyFormatter.format(currentMonthProjection.totalObligations)}</span>
-                  </article>
-                </div>
+                </span>
+              </p>
+              <p>
+                Entradas do mês:{' '}
+                <span className="money-value">{currencyFormatter.format(currentMonthProjection.totalEntries)}</span>
+              </p>
+              <p>
+                Despesas do mês:{' '}
+                <span className="money-value">{currencyFormatter.format(currentMonthProjection.totalObligations)}</span>
+              </p>
+              <p>
+                Status do mês:{' '}
                 <span className={`status-pill ${getBalanceTone(currentMonthProjection.balance)}`}>
                   {getMonthStatus(currentMonthProjection.balance)}
                 </span>
-              </div>
+              </p>
               <section className="current-month-blocks">
                 <h3>Blocos do mês atual</h3>
                 <div className="current-month-blocks-grid">
                   <article className="month-block-card">
-                    <h4>Bloco 10</h4>
+                    <h4>📅 Bloco 10</h4>
                     <p>Entradas: {currencyFormatter.format(currentMonthProjection.block10.entries)}</p>
                     <p>Despesas: {currencyFormatter.format(currentMonthProjection.block10.obligations)}</p>
                     <p>
@@ -1448,7 +1473,7 @@ export default function HomePage() {
                     </span>
                   </article>
                   <article className="month-block-card">
-                    <h4>Bloco 25</h4>
+                    <h4>💳 Bloco 25</h4>
                     <p>Entradas: {currencyFormatter.format(currentMonthProjection.block25.entries)}</p>
                     <p>Despesas: {currencyFormatter.format(currentMonthProjection.block25.obligations)}</p>
                     <p>
@@ -1463,34 +1488,13 @@ export default function HomePage() {
                   </article>
                 </div>
               </section>
+              <div className="section-separator" />
 
               <section>
-                <h3>Ações rápidas</h3>
-                <div className="quick-actions-grid">
-                  <button
-                    type="button"
-                    className="quick-action-card"
-                    onClick={() => {
-                      setActiveSection('lancamentos');
-                      setLaunchTarget('entry');
-                    }}
-                  >
-                    <span aria-hidden="true">➕</span>
-                    <span>Nova entrada</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="quick-action-card"
-                    onClick={() => {
-                      setActiveSection('lancamentos');
-                      setLaunchTarget('obligation');
-                    }}
-                  >
-                    <span aria-hidden="true">➖</span>
-                    <span>Nova despesa</span>
-                  </button>
-                </div>
+                <h3>Ação principal</h3>
+                <p>Use o botão flutuante + para registrar entrada ou despesa rapidamente.</p>
               </section>
+              <div className="section-separator" />
 
               <section>
                 <h3>Itens importantes do mês</h3>
@@ -2529,25 +2533,21 @@ export default function HomePage() {
           <div className="fab-actions">
             <button
               type="button"
-              className="fab-action-item"
               onClick={() => {
                 setActiveSection('lancamentos');
                 setLaunchTarget('entry');
               }}
             >
-              <span aria-hidden="true">➕</span>
-              <span>Nova entrada</span>
+              + Entrada
             </button>
             <button
               type="button"
-              className="fab-action-item"
               onClick={() => {
                 setActiveSection('lancamentos');
                 setLaunchTarget('obligation');
               }}
             >
-              <span aria-hidden="true">➖</span>
-              <span>Nova despesa</span>
+              + Despesa
             </button>
           </div>
         ) : null}
@@ -2558,7 +2558,7 @@ export default function HomePage() {
           aria-label="Abrir ações rápidas"
           onClick={() => setIsFabOpen((previous) => !previous)}
         >
-          {isFabOpen ? '×' : '+'}
+          +
         </button>
       </div>
 
