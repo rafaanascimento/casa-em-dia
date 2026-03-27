@@ -383,6 +383,14 @@ const normalizeMonthKey = (monthKey: string) => {
   return `${year}-${month.padStart(2, '0')}`;
 };
 
+const normalizeBlockType = (blockType: unknown): '10' | '25' => {
+  if (blockType === 10 || blockType === '10') {
+    return '10';
+  }
+
+  return '25';
+};
+
 const sectionSubtitleBySection: Record<DashboardSection, string> = {
   home: 'Resumo do mês com visão rápida da família.',
   lancamentos: 'Cadastre e ajuste entradas e despesas com clareza.',
@@ -540,16 +548,38 @@ export default function HomePage() {
       return;
     }
 
-    setEntries((entriesData ?? []) as EntryRow[]);
-    setObligations((obligationsData ?? []) as ObligationRow[]);
-    setEntryList((entriesListData ?? []) as EntryListRow[]);
-    setObligationList((obligationsListData ?? []) as ObligationListRow[]);
+    const normalizedEntries = ((entriesData ?? []) as EntryRow[]).map((entry) => ({
+      ...entry,
+      block_type: normalizeBlockType(entry.block_type)
+    }));
+
+    const normalizedObligations = ((obligationsData ?? []) as ObligationRow[]).map((obligation) => ({
+      ...obligation,
+      block_type: normalizeBlockType(obligation.block_type)
+    }));
+
+    const normalizedEntryList = ((entriesListData ?? []) as EntryListRow[]).map((entry) => ({
+      ...entry,
+      block_type: normalizeBlockType(entry.block_type)
+    }));
+
+    const normalizedObligationList = ((obligationsListData ?? []) as ObligationListRow[]).map((obligation) => ({
+      ...obligation,
+      block_type: normalizeBlockType(obligation.block_type)
+    }));
+
+    setEntries(normalizedEntries);
+    setObligations(normalizedObligations);
+    setEntryList(normalizedEntryList);
+    setObligationList(normalizedObligationList);
+
     const normalizedOccurrences = ((occurrencesData ?? []) as MonthlyOccurrenceRow[])
       .map((occurrence) => ({
         ...occurrence,
         source_type: normalizeSourceType(occurrence.source_type) as MonthlyOccurrenceRow['source_type'],
         month_key: normalizeMonthKey(occurrence.month_key),
-        source_id: occurrence.source_id.trim()
+        source_id: occurrence.source_id.trim(),
+        block_type: normalizeBlockType(occurrence.block_type)
       }))
       .filter((occurrence) => occurrence.source_type && occurrence.month_key && occurrence.source_id);
 
@@ -628,7 +658,7 @@ export default function HomePage() {
         const amount = Number(entry.amount);
         totalEntries += amount;
 
-        if (entry.block_type === '10') {
+        if (normalizeBlockType(entry.block_type) === '10') {
           block10Entries += amount;
         } else {
           block25Entries += amount;
@@ -645,7 +675,7 @@ export default function HomePage() {
         const amount = Number(obligation.amount);
         totalObligations += amount;
 
-        if (obligation.block_type === '10') {
+        if (normalizeBlockType(obligation.block_type) === '10') {
           block10Obligations += amount;
         } else {
           block25Obligations += amount;
@@ -682,7 +712,7 @@ export default function HomePage() {
           amount: Number(item.amount),
           date: item.start_date,
           typeLabel: 'Entrada',
-          blockType: item.block_type,
+          blockType: normalizeBlockType(item.block_type),
           isActive: item.is_active,
           detailLabel: item.recurrence_type === 'monthly' ? 'Mensal' : 'Avulsa',
           source: 'entry' as const,
@@ -694,7 +724,7 @@ export default function HomePage() {
           amount: Number(item.amount),
           date: item.start_date,
           typeLabel: 'Despesa',
-          blockType: item.block_type,
+          blockType: normalizeBlockType(item.block_type),
           isActive: item.is_active,
           detailLabel:
             item.type === 'parcelada' && item.total_installments
@@ -1219,7 +1249,7 @@ export default function HomePage() {
       startDate: entryItem.start_date,
       endDate: entryItem.end_date ?? '',
       dueDay: entryItem.due_day ? String(entryItem.due_day) : '',
-      blockType: entryItem.block_type,
+      blockType: normalizeBlockType(entryItem.block_type),
       isActive: entryItem.is_active
     });
   };
@@ -1272,7 +1302,7 @@ export default function HomePage() {
       startDate: obligationItem.start_date,
       endDate: obligationItem.end_date ?? '',
       dueDay: obligationItem.due_day ? String(obligationItem.due_day) : '',
-      blockType: obligationItem.block_type,
+      blockType: normalizeBlockType(obligationItem.block_type),
       isActive: obligationItem.is_active
     });
   };
@@ -1820,7 +1850,7 @@ export default function HomePage() {
                                 return (
                                   <li key={`${month.key}-entry-${entryItem.id}`}>
                                     {entryItem.title} — {currencyFormatter.format(Number(entryItem.amount))} (
-                                    {entryItem.recurrence_type}, bloco {entryItem.block_type}) —{' '}
+                                    {entryItem.recurrence_type}, bloco {normalizeBlockType(entryItem.block_type)}) —{' '}
                                     <span className={`status-pill ${isReceived ? 'status-success' : 'status-pending'}`}>
                                       {isReceived ? 'Recebida' : 'Pendente'}
                                     </span>
@@ -1834,7 +1864,7 @@ export default function HomePage() {
                                           month.key,
                                           entryItem.title,
                                           Number(entryItem.amount),
-                                          entryItem.block_type,
+                                          normalizeBlockType(entryItem.block_type),
                                           'received'
                                         )
                                       }
@@ -1866,7 +1896,7 @@ export default function HomePage() {
                                     {obligationItem.type === 'parcelada' && obligationItem.total_installments
                                       ? `, parcelada em ${obligationItem.total_installments}x`
                                       : ''}
-                                    , bloco {obligationItem.block_type}) —{' '}
+                                    , bloco {normalizeBlockType(obligationItem.block_type)}) —{' '}
                                     <span className={`status-pill ${isPaid ? 'status-success' : 'status-pending'}`}>
                                       {isPaid ? 'Paga' : 'Pendente'}
                                     </span>
@@ -1880,7 +1910,7 @@ export default function HomePage() {
                                           month.key,
                                           obligationItem.title,
                                           Number(obligationItem.amount),
-                                          obligationItem.block_type,
+                                          normalizeBlockType(obligationItem.block_type),
                                           'paid'
                                         )
                                       }

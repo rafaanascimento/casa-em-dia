@@ -65,6 +65,12 @@ body {
   background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
 }
 
+
+.app-header {
+  border: 1px solid #dbe5ff;
+  background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
+}
+
 .brand-row {
   display: grid;
   grid-template-columns: auto 1fr;
