@@ -99,6 +99,33 @@ body {
   gap: var(--space-1);
 }
 
+.dashboard-month-label {
+  margin-bottom: var(--space-2);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.current-month-blocks {
+  margin-top: var(--space-4);
+}
+
+.current-month-blocks-grid {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: 1fr;
+}
+
+.month-block-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  background: #f8fafc;
+}
+
+.month-block-card p {
+  margin: 0.25rem 0;
+}
+
 h2,
 h3,
 h4 {
@@ -352,5 +379,11 @@ tr.is-safe-month {
   table {
     min-width: 560px;
     font-size: 0.92rem;
+  }
+}
+
+@media (min-width: 901px) {
+  .current-month-blocks-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
