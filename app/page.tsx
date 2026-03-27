@@ -1383,8 +1383,9 @@ export default function HomePage() {
   return (
     <main className="app-shell">
       <header className="app-header card">
+        <p className="app-brand-kicker">Planejamento financeiro familiar</p>
         <h1 className="app-title">Casa em Dia</h1>
-        <p>Você está autenticado e já possui vínculo com uma família.</p>
+        <p className="app-brand-subtitle">Seu painel diário de entradas, despesas e saldo.</p>
       </header>
       {activeSection === 'home' && currentMonthPendingMessages.length > 0 ? (
         <section className="card pending-alerts">
@@ -1400,36 +1401,35 @@ export default function HomePage() {
       <div className="content-grid">
         {activeSection === 'home' ? (
         <>
-        <section className="card">
-          <h2>Painel do mês atual</h2>
+        <section className="card home-highlight-card">
+          <h2>Resumo do mês</h2>
           {currentMonthProjection ? (
             <>
-              <p className="dashboard-month-label">
-                {currentMonthProjection.label}
-                <span className={`status-pill ${getRiskTone(currentMonthRisk.level)}`}>
-                  {getRiskBadgeLabel(currentMonthRisk.level)}
-                </span>
-              </p>
-              <p>
-                Saldo do mês:{' '}
-                <span className={`money-value main-balance-value ${getBalanceTone(currentMonthProjection.balance)}`}>
+              <div className="dashboard-hero">
+                <div className="dashboard-hero-header">
+                  <p className="dashboard-month-label">{currentMonthProjection.label}</p>
+                  <span className={`status-pill ${getRiskTone(currentMonthRisk.level)}`}>
+                    {getRiskBadgeLabel(currentMonthRisk.level)}
+                  </span>
+                </div>
+                <p className="dashboard-balance-label">Saldo do mês</p>
+                <p className={`money-value main-balance-value ${getBalanceTone(currentMonthProjection.balance)}`}>
                   {currencyFormatter.format(currentMonthProjection.balance)}
-                </span>
-              </p>
-              <p>
-                Entradas do mês:{' '}
-                <span className="money-value">{currencyFormatter.format(currentMonthProjection.totalEntries)}</span>
-              </p>
-              <p>
-                Despesas do mês:{' '}
-                <span className="money-value">{currencyFormatter.format(currentMonthProjection.totalObligations)}</span>
-              </p>
-              <p>
-                Status do mês:{' '}
+                </p>
+                <div className="hero-metrics-grid">
+                  <article className="hero-metric-card">
+                    <span className="hero-metric-label">Entradas</span>
+                    <span className="money-value">{currencyFormatter.format(currentMonthProjection.totalEntries)}</span>
+                  </article>
+                  <article className="hero-metric-card">
+                    <span className="hero-metric-label">Despesas</span>
+                    <span className="money-value">{currencyFormatter.format(currentMonthProjection.totalObligations)}</span>
+                  </article>
+                </div>
                 <span className={`status-pill ${getBalanceTone(currentMonthProjection.balance)}`}>
                   {getMonthStatus(currentMonthProjection.balance)}
                 </span>
-              </p>
+              </div>
               <section className="current-month-blocks">
                 <h3>Blocos do mês atual</h3>
                 <div className="current-month-blocks-grid">
@@ -1466,24 +1466,28 @@ export default function HomePage() {
 
               <section>
                 <h3>Ações rápidas</h3>
-                <div className="button-row">
+                <div className="quick-actions-grid">
                   <button
                     type="button"
+                    className="quick-action-card"
                     onClick={() => {
                       setActiveSection('lancamentos');
                       setLaunchTarget('entry');
                     }}
                   >
-                    Adicionar entrada
+                    <span aria-hidden="true">➕</span>
+                    <span>Nova entrada</span>
                   </button>
                   <button
                     type="button"
+                    className="quick-action-card"
                     onClick={() => {
                       setActiveSection('lancamentos');
                       setLaunchTarget('obligation');
                     }}
                   >
-                    Adicionar despesa
+                    <span aria-hidden="true">➖</span>
+                    <span>Nova despesa</span>
                   </button>
                 </div>
               </section>
@@ -1857,8 +1861,11 @@ export default function HomePage() {
         <>
         <section className="card" id="entry-create-section">
         <h2>Cadastrar entrada</h2>
-        <form onSubmit={handleCreateEntry}>
-          <div>
+        <form className="modern-form" onSubmit={handleCreateEntry}>
+          <div className="form-block">
+            <p className="form-block-title">Informações principais</p>
+            <div className="form-grid">
+            <div>
             <label htmlFor="entryTitle">Título</label>
             <input
               id="entryTitle"
@@ -1870,7 +1877,7 @@ export default function HomePage() {
           </div>
 
           <div>
-            <label htmlFor="entryAmount">Valor</label>
+            <label htmlFor="entryAmount">Valor (R$)</label>
             <input
               id="entryAmount"
               type="number"
@@ -1881,8 +1888,13 @@ export default function HomePage() {
               required
             />
           </div>
+          </div>
+          </div>
 
-          <div>
+          <div className="form-block">
+            <p className="form-block-title">Recorrência e período</p>
+            <div className="form-grid">
+            <div>
             <label htmlFor="entryRecurrenceType">Recorrência</label>
             <select
               id="entryRecurrenceType"
@@ -1900,7 +1912,7 @@ export default function HomePage() {
           </div>
 
           <div>
-            <label htmlFor="entryStartDate">Data inicial</label>
+            <label htmlFor="entryStartDate">Início</label>
             <input
               id="entryStartDate"
               type="date"
@@ -1911,7 +1923,7 @@ export default function HomePage() {
           </div>
 
           <div>
-            <label htmlFor="entryEndDate">Data final (opcional)</label>
+            <label htmlFor="entryEndDate">Fim (opcional)</label>
             <input
               id="entryEndDate"
               type="date"
@@ -1919,7 +1931,12 @@ export default function HomePage() {
               onChange={(event) => setEntryForm({ ...entryForm, endDate: event.target.value })}
             />
           </div>
+          </div>
+          </div>
 
+          <div className="form-block">
+            <p className="form-block-title">Organização</p>
+            <div className="form-grid">
           <div>
             <label htmlFor="entryDueDay">Dia de vencimento</label>
             <input
@@ -1949,8 +1966,10 @@ export default function HomePage() {
               <option value="25">25</option>
             </select>
           </div>
+          </div>
+          </div>
 
-          <div>
+          <div className="form-inline-toggle">
             <label htmlFor="entryIsActive">Ativo</label>
             <input
               id="entryIsActive"
@@ -1969,7 +1988,10 @@ export default function HomePage() {
 
         <section className="card" id="obligation-create-section">
         <h2>Cadastrar despesa</h2>
-        <form onSubmit={handleCreateObligation}>
+        <form className="modern-form" onSubmit={handleCreateObligation}>
+          <div className="form-block">
+            <p className="form-block-title">Informações principais</p>
+            <div className="form-grid">
           <div>
             <label htmlFor="obligationTitle">Título</label>
             <input
@@ -1984,7 +2006,7 @@ export default function HomePage() {
           </div>
 
           <div>
-            <label htmlFor="obligationAmount">Valor</label>
+            <label htmlFor="obligationAmount">Valor (R$)</label>
             <input
               id="obligationAmount"
               type="number"
@@ -1997,7 +2019,12 @@ export default function HomePage() {
               required
             />
           </div>
+          </div>
+          </div>
 
+          <div className="form-block">
+            <p className="form-block-title">Tipo e recorrência</p>
+            <div className="form-grid">
           <div>
             <label htmlFor="obligationType">Tipo</label>
             <select
@@ -2049,9 +2076,14 @@ export default function HomePage() {
               <option value="one_time">Avulsa</option>
             </select>
           </div>
+          </div>
+          </div>
 
+          <div className="form-block">
+            <p className="form-block-title">Período e organização</p>
+            <div className="form-grid">
           <div>
-            <label htmlFor="obligationStartDate">Data inicial</label>
+            <label htmlFor="obligationStartDate">Início</label>
             <input
               id="obligationStartDate"
               type="date"
@@ -2064,7 +2096,7 @@ export default function HomePage() {
           </div>
 
           <div>
-            <label htmlFor="obligationEndDate">Data final (opcional)</label>
+            <label htmlFor="obligationEndDate">Fim (opcional)</label>
             <input
               id="obligationEndDate"
               type="date"
@@ -2102,8 +2134,10 @@ export default function HomePage() {
               <option value="25">25</option>
             </select>
           </div>
+          </div>
+          </div>
 
-          <div>
+          <div className="form-inline-toggle">
             <label htmlFor="obligationIsActive">Ativo</label>
             <input
               id="obligationIsActive"
@@ -2495,21 +2529,25 @@ export default function HomePage() {
           <div className="fab-actions">
             <button
               type="button"
+              className="fab-action-item"
               onClick={() => {
                 setActiveSection('lancamentos');
                 setLaunchTarget('entry');
               }}
             >
-              + Entrada
+              <span aria-hidden="true">➕</span>
+              <span>Nova entrada</span>
             </button>
             <button
               type="button"
+              className="fab-action-item"
               onClick={() => {
                 setActiveSection('lancamentos');
                 setLaunchTarget('obligation');
               }}
             >
-              + Despesa
+              <span aria-hidden="true">➖</span>
+              <span>Nova despesa</span>
             </button>
           </div>
         ) : null}
@@ -2520,7 +2558,7 @@ export default function HomePage() {
           aria-label="Abrir ações rápidas"
           onClick={() => setIsFabOpen((previous) => !previous)}
         >
-          +
+          {isFabOpen ? '×' : '+'}
         </button>
       </div>
 
