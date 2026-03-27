@@ -47,7 +47,7 @@ body {
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 1rem;
+  padding: var(--space-5);
   display: grid;
   gap: var(--space-4);
 }
