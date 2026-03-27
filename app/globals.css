@@ -57,7 +57,7 @@ body {
   gap: var(--space-1);
 }
 
-<<<<<<< codex/implementar-notificacoes-mensais-de-pendencias-9zuau4
+
 .brand-row {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -87,7 +87,7 @@ body {
 .brand-subtitle {
   margin: 0.15rem 0 0;
   font-size: 0.88rem;
-=======
+
 .app-brand-kicker {
   margin: 0;
   font-size: 0.78rem;
@@ -95,7 +95,7 @@ body {
   letter-spacing: 0.08em;
   color: var(--color-accent);
   font-weight: 700;
->>>>>>> main
+
 }
 
 .app-title {
@@ -103,14 +103,13 @@ body {
   font-size: 2rem;
   line-height: 1.15;
   color: var(--text-primary);
-<<<<<<< codex/implementar-notificacoes-mensais-de-pendencias-9zuau4
-=======
+
 }
 
 .app-brand-subtitle {
   margin: 0;
   font-size: 0.95rem;
->>>>>>> main
+
 }
 
 .content-grid {
@@ -133,7 +132,7 @@ body {
 
 .pending-alerts {
   border-left: 5px solid var(--color-danger);
-<<<<<<< codex/implementar-notificacoes-mensais-de-pendencias-9zuau4
+
   background: #fff;
 }
 
@@ -199,7 +198,6 @@ body {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: #fff;
-=======
   background: #fff;
 }
 
@@ -307,7 +305,6 @@ body {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: #fff;
->>>>>>> main
   padding: var(--space-3);
   box-shadow: 0 6px 14px rgba(15, 23, 42, 0.05);
 }
@@ -342,7 +339,6 @@ body {
 
 .fab-actions {
   display: grid;
-<<<<<<< codex/implementar-notificacoes-mensais-de-pendencias-9zuau4
   gap: 0.45rem;
 }
 
@@ -350,7 +346,6 @@ body {
   border-radius: 999px;
   padding: 0.5rem 0.9rem;
   font-size: 0.82rem;
-=======
   gap: 0.55rem;
 }
 
@@ -361,7 +356,6 @@ body {
   display: flex;
   align-items: center;
   gap: 0.45rem;
->>>>>>> main
   box-shadow: 0 8px 20px rgba(79, 70, 229, 0.22);
 }
 
@@ -460,8 +454,7 @@ p {
   flex-wrap: wrap;
   gap: var(--space-2);
   margin-bottom: var(--space-3);
-<<<<<<< codex/implementar-notificacoes-mensais-de-pendencias-9zuau4
-=======
+
 }
 
 .quick-actions-grid {
@@ -478,7 +471,7 @@ p {
   justify-content: center;
   gap: 0.45rem;
   min-height: 3.2rem;
->>>>>>> main
+
 }
 
 button {
@@ -500,11 +493,11 @@ button:hover:not(:disabled) {
 }
 
 button:active:not(:disabled) {
-<<<<<<< codex/implementar-notificacoes-mensais-de-pendencias-9zuau4
+
   transform: translateY(0);
-=======
+
   transform: scale(0.98);
->>>>>>> main
+
   filter: brightness(0.98);
 }
 
@@ -516,8 +509,7 @@ button:disabled {
 form {
   display: grid;
   gap: var(--space-3);
-<<<<<<< codex/implementar-notificacoes-mensais-de-pendencias-9zuau4
-=======
+
 }
 
 .modern-form {
@@ -545,20 +537,19 @@ form {
 .form-grid {
   display: grid;
   gap: 0.75rem;
->>>>>>> main
+
 }
 
 form > div {
   display: grid;
   gap: var(--space-1);
-<<<<<<< codex/implementar-notificacoes-mensais-de-pendencias-9zuau4
-=======
+
 }
 
 label {
   font-size: 0.8rem;
   font-weight: 600;
->>>>>>> main
+
 }
 
 input,
@@ -566,9 +557,6 @@ select {
   width: 100%;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-<<<<<<< codex/implementar-notificacoes-mensais-de-pendencias-9zuau4
-  padding: 0.6rem 0.65rem;
-=======
   padding: 0.72rem;
   background: #fff;
   color: var(--text-primary);
@@ -590,7 +578,7 @@ input[type='checkbox'] {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   padding: 0.8rem;
->>>>>>> main
+
   background: #fff;
   color: var(--text-primary);
 }
@@ -767,7 +755,7 @@ tr.is-safe-month {
   }
 
   .main-balance-value {
-<<<<<<< codex/implementar-notificacoes-mensais-de-pendencias-9zuau4
+
     font-size: 1.9rem;
   }
 
@@ -775,13 +763,11 @@ tr.is-safe-month {
     width: 2.3rem;
     height: 2.3rem;
     font-size: 1.2rem;
-=======
     font-size: 2.1rem;
   }
 
   .quick-actions-grid {
     grid-template-columns: 1fr;
->>>>>>> main
   }
 }
 
@@ -794,13 +780,11 @@ tr.is-safe-month {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-<<<<<<< codex/implementar-notificacoes-mensais-de-pendencias-9zuau4
-=======
+
   .form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
->>>>>>> main
   .bottom-nav {
     left: 50%;
     transform: translateX(-50%);
