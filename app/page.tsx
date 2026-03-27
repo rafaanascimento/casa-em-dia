@@ -1470,8 +1470,8 @@ export default function HomePage() {
       <div className="content-grid">
         {activeSection === 'home' ? (
         <>
-        <section className="card">
-          <h2>Painel do mês atual</h2>
+        <section className="card home-main-card">
+          <h2 className="home-section-title">Painel do mês atual</h2>
           {currentMonthProjection ? (
             <>
               <p className="dashboard-month-label">
@@ -1504,7 +1504,12 @@ export default function HomePage() {
                 <h3>Blocos do mês atual</h3>
                 <div className="current-month-blocks-grid">
                   <article className="month-block-card">
-                    <h4>📅 Bloco 10</h4>
+                    <div className="month-block-header">
+                      <h4>📅 Bloco 10</h4>
+                      <span className={`status-pill ${getBalanceTone(currentMonthProjection.block10.balance)}`}>
+                        {getBlockStatus(currentMonthProjection.block10.balance)}
+                      </span>
+                    </div>
                     <p>Entradas: {currencyFormatter.format(currentMonthProjection.block10.entries)}</p>
                     <p>Despesas: {currencyFormatter.format(currentMonthProjection.block10.obligations)}</p>
                     <p>
@@ -1513,12 +1518,15 @@ export default function HomePage() {
                         {currencyFormatter.format(currentMonthProjection.block10.balance)}
                       </span>
                     </p>
-                    <span className={`status-pill ${getBalanceTone(currentMonthProjection.block10.balance)}`}>
-                      {getBlockStatus(currentMonthProjection.block10.balance)}
-                    </span>
+
                   </article>
                   <article className="month-block-card">
-                    <h4>💳 Bloco 25</h4>
+                    <div className="month-block-header">
+                      <h4>💳 Bloco 25</h4>
+                      <span className={`status-pill ${getBalanceTone(currentMonthProjection.block25.balance)}`}>
+                        {getBlockStatus(currentMonthProjection.block25.balance)}
+                      </span>
+                    </div>
                     <p>Entradas: {currencyFormatter.format(currentMonthProjection.block25.entries)}</p>
                     <p>Despesas: {currencyFormatter.format(currentMonthProjection.block25.obligations)}</p>
                     <p>
@@ -1527,9 +1535,7 @@ export default function HomePage() {
                         {currencyFormatter.format(currentMonthProjection.block25.balance)}
                       </span>
                     </p>
-                    <span className={`status-pill ${getBalanceTone(currentMonthProjection.block25.balance)}`}>
-                      {getBlockStatus(currentMonthProjection.block25.balance)}
-                    </span>
+
                   </article>
                 </div>
               </section>
@@ -1563,8 +1569,8 @@ export default function HomePage() {
             <p>Sem dados disponíveis para o mês atual.</p>
           )}
         </section>
-        <section className="card executive-card">
-          <h2>Resumo executivo</h2>
+        <section className="card executive-card home-support-card">
+          <h2 className="home-section-title">Resumo executivo</h2>
           <p>
             Situação do mês:{' '}
             <span className={`status-pill ${getRiskTone(currentMonthRisk.level)}`}>
@@ -1724,65 +1730,73 @@ export default function HomePage() {
                           </span>
                         </header>
 
-                        <div className="month-summary-groups">
+                        <div className="month-summary-groups month-summary-groups-primary">
                           <section className="month-summary-group">
-                            <h5>Previsto</h5>
+                            <h5>Visão geral</h5>
                             <p>Entradas: {currencyFormatter.format(month.totalEntries)}</p>
                             <p>Despesas: {currencyFormatter.format(month.totalObligations)}</p>
                             <p>Saldo previsto: {currencyFormatter.format(month.balance)}</p>
-                          </section>
-
-                          <section className="month-summary-group">
-                            <h5>Realizado</h5>
-                            <p>Entradas recebidas: {currencyFormatter.format(monthPlannedVsActual?.totalEntriesReceived ?? 0)}</p>
-                            <p>Entradas pendentes: {currencyFormatter.format(monthPlannedVsActual?.totalEntriesPending ?? 0)}</p>
-                            <p>Despesas pagas: {currencyFormatter.format(monthPlannedVsActual?.totalObligationsPaid ?? 0)}</p>
-                            <p>Despesas pendentes: {currencyFormatter.format(monthPlannedVsActual?.totalObligationsPending ?? 0)}</p>
-                            <p>Saldo realizado parcial: {currencyFormatter.format(monthPlannedVsActual?.partialActualBalance ?? 0)}</p>
+                            <p>
+                              Status do mês:{' '}
+                              <span className={`status-pill ${getBalanceTone(month.balance)}`}>{getMonthStatus(month.balance)}</span>
+                            </p>
                           </section>
 
                           <section className="month-summary-group">
                             <h5>Blocos</h5>
                             <p>Total do bloco 10: {currencyFormatter.format(month.block10.balance)}</p>
                             <p>Total do bloco 25: {currencyFormatter.format(month.block25.balance)}</p>
-                            <p>
-                              Status do mês:{' '}
-                              <span className={`status-pill ${getBalanceTone(month.balance)}`}>{getMonthStatus(month.balance)}</span>
-                            </p>
                           </section>
                         </div>
 
-                        <section className="month-summary-group month-summary-executive">
-                          <h5>Leitura executiva</h5>
-                          <ul>
-                            <li>{currentSituation.message}</li>
-                            <li>{expectedComparison.message}</li>
-                            {(monthRisk?.messages ?? ['Situação estável para este mês']).map((riskMessage) => (
-                              <li key={`${month.key}-risk-${riskMessage}`}>{riskMessage}</li>
-                            ))}
-                          </ul>
-                        </section>
+                        <details className="month-summary-extra">
+                          <summary>Ver análise completa</summary>
 
-                        <section className="month-summary-group">
-                          <h5>Alertas</h5>
-                          <ul>
-                            {monthAlerts.length > 0 ? (
-                              monthAlerts.map((alert) => <li key={`${month.key}-${alert}`}>{alert}</li>)
-                            ) : (
-                              <li>Sem alertas para este mês.</li>
-                            )}
-                          </ul>
-                          <p>Mudanças para o próximo mês:</p>
-                          <ul>
-                            {nextMonthAlerts.length > 0 ? (
-                              nextMonthAlerts.map((alert) => (
-                                <li key={`${month.key}-next-${alert}`}>{alert}</li>
-                              ))
-                            ) : (
-                              <li>Sem mudanças relevantes para o próximo mês.</li>
-                            )}
-                          </ul>
-                        </section>
+                          <div className="month-summary-groups">
+                            <section className="month-summary-group">
+                              <h5>Previsto x realizado</h5>
+                              <p>Entradas previstas: {currencyFormatter.format(monthPlannedVsActual?.totalEntriesPlanned ?? 0)}</p>
+                              <p>Entradas recebidas: {currencyFormatter.format(monthPlannedVsActual?.totalEntriesReceived ?? 0)}</p>
+                              <p>Entradas pendentes: {currencyFormatter.format(monthPlannedVsActual?.totalEntriesPending ?? 0)}</p>
+                              <p>Despesas previstas: {currencyFormatter.format(monthPlannedVsActual?.totalObligationsPlanned ?? 0)}</p>
+                              <p>Despesas pagas: {currencyFormatter.format(monthPlannedVsActual?.totalObligationsPaid ?? 0)}</p>
+                              <p>Despesas pendentes: {currencyFormatter.format(monthPlannedVsActual?.totalObligationsPending ?? 0)}</p>
+                              <p>Saldo realizado parcial: {currencyFormatter.format(monthPlannedVsActual?.partialActualBalance ?? 0)}</p>
+                            </section>
+
+                            <section className="month-summary-group month-summary-executive">
+                              <h5>Leitura executiva</h5>
+                              <ul>
+                                <li>{currentSituation.message}</li>
+                                <li>{expectedComparison.message}</li>
+                                {(monthRisk?.messages ?? ['Situação estável para este mês']).map((riskMessage) => (
+                                  <li key={`${month.key}-risk-${riskMessage}`}>{riskMessage}</li>
+                                ))}
+                              </ul>
+                            </section>
+
+                            <section className="month-summary-group">
+                              <h5>Alertas</h5>
+                              <ul>
+                                {monthAlerts.length > 0 ? (
+                                  monthAlerts.map((alert) => <li key={`${month.key}-${alert}`}>{alert}</li>)
+                                ) : (
+                                  <li>Sem alertas para este mês.</li>
+                                )}
+                              </ul>
+                              <p>Mudanças para o próximo mês:</p>
+                              <ul>
+                                {nextMonthAlerts.length > 0 ? (
+                                  nextMonthAlerts.map((alert) => (
+                                    <li key={`${month.key}-next-${alert}`}>{alert}</li>
+                                  ))
+                                ) : (
+                                  <li>Sem mudanças relevantes para o próximo mês.</li>
+                                )}
+                              </ul>
+                            </section>
+                          </div>
+                        </details>
 
                         <details
                           open={expandedMonthKeys.includes(month.key)}
