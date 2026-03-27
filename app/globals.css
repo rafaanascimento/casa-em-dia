@@ -47,7 +47,7 @@ body {
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 1rem 1rem calc(8.5rem + env(safe-area-inset-bottom, 0px));
+  padding: 1rem 1rem calc(12rem + env(safe-area-inset-bottom, 0px));
   display: grid;
   gap: var(--space-4);
 }
