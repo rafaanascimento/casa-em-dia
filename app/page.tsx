@@ -906,6 +906,68 @@ export default function HomePage() {
     };
   }, [monthDetailsByKey, currentMonthKey, monthlyOccurrences, familyId]);
 
+  const currentMonthReferenceDate = useMemo(() => {
+    const [year, month] = currentMonthKey.split('-').map(Number);
+    return new Date(year, month - 1, 1);
+  }, [currentMonthKey]);
+
+  const currentMonthLabel = useMemo(() => {
+    const monthName = currentMonthReferenceDate.toLocaleDateString('pt-BR', { month: 'long' });
+    const formattedMonth = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+
+    return {
+      month: formattedMonth,
+      year: String(currentMonthReferenceDate.getFullYear())
+    };
+  }, [currentMonthReferenceDate]);
+
+  const currentMonthCommitments = useMemo(() => {
+    const entriesCommitments = entryList
+      .filter((entryItem) => doesEntryApplyToMonth(entryItem as EntryRow, currentMonthReferenceDate))
+      .map((entryItem) => ({
+        id: entryItem.id,
+        title: entryItem.title,
+        amount: Number(entryItem.amount),
+        dueDay: entryItem.due_day,
+        blockType: normalizeBlockType(entryItem.block_type),
+        kind: 'Entrada',
+        status: getOccurrenceStatus('entry', entryItem.id, currentMonthKey)
+      }));
+
+    const obligationsCommitments = obligationList
+      .filter((obligationItem) => doesObligationApplyToMonth(obligationItem as ObligationRow, currentMonthReferenceDate))
+      .map((obligationItem) => ({
+        id: obligationItem.id,
+        title: obligationItem.title,
+        amount: Number(obligationItem.amount),
+        dueDay: obligationItem.due_day,
+        blockType: normalizeBlockType(obligationItem.block_type),
+        kind: 'Despesa',
+        status: getOccurrenceStatus('obligation', obligationItem.id, currentMonthKey)
+      }));
+
+    return [...entriesCommitments, ...obligationsCommitments].sort((firstItem, secondItem) => {
+      const firstDueDay = firstItem.dueDay ?? 99;
+      const secondDueDay = secondItem.dueDay ?? 99;
+
+      if (firstDueDay !== secondDueDay) {
+        return firstDueDay - secondDueDay;
+      }
+
+      return firstItem.title.localeCompare(secondItem.title);
+    });
+  }, [entryList, obligationList, currentMonthReferenceDate, currentMonthKey, monthlyOccurrences, familyId]);
+
+  const currentMonthBlock10Items = useMemo(
+    () => currentMonthCommitments.filter((item) => item.blockType === '10'),
+    [currentMonthCommitments]
+  );
+
+  const currentMonthBlock25Items = useMemo(
+    () => currentMonthCommitments.filter((item) => item.blockType === '25'),
+    [currentMonthCommitments]
+  );
+
   const monthPlannedVsActualByKey = useMemo(() => {
     const plannedVsActualMap = new Map<string, MonthPlannedVsActual>();
 
@@ -1487,13 +1549,17 @@ export default function HomePage() {
         </div>
       </header>
       {activeSection === 'home' && currentMonthPendingMessages.length > 0 ? (
-        <section className="card pending-alerts">
-          <h2 className="pending-alerts-title">Pendências do mês atual</h2>
-          <ul className="pending-alerts-list">
-            {currentMonthPendingMessages.map((message) => (
-              <li key={message}>{message}</li>
-            ))}
-          </ul>
+        <section className="card pending-alerts pending-alerts-compact">
+          <details>
+            <summary className="pending-alerts-summary">
+              ⚠️ Pendências do mês: {currentMonthPendingSummary.pendingEntries + currentMonthPendingSummary.pendingObligations}
+            </summary>
+            <ul className="pending-alerts-list">
+              {currentMonthPendingMessages.map((message) => (
+                <li key={message}>{message}</li>
+              ))}
+            </ul>
+          </details>
         </section>
       ) : null}
 
@@ -1501,98 +1567,108 @@ export default function HomePage() {
         {activeSection === 'home' ? (
         <>
         <section className="card home-main-card">
-          <h2 className="home-section-title">Painel do mês atual</h2>
           {currentMonthProjection ? (
             <>
-              <p className="dashboard-month-label">
-                {currentMonthProjection.label}
+              <header className="home-month-header">
+                <p className="home-month-title">
+                  {currentMonthLabel.month} <span>{currentMonthLabel.year}</span>
+                </p>
                 <span className={`status-pill ${getRiskTone(currentMonthRisk.level)}`}>
                   {getRiskBadgeLabel(currentMonthRisk.level)}
                 </span>
-              </p>
-              <p>
-                Saldo do mês:{' '}
-                <span className={`money-value main-balance-value ${getBalanceTone(currentMonthProjection.balance)}`}>
-                  {currencyFormatter.format(currentMonthProjection.balance)}
-                </span>
-              </p>
-              <p>
-                Entradas do mês:{' '}
-                <span className="money-value">{currencyFormatter.format(currentMonthProjection.totalEntries)}</span>
-              </p>
-              <p>
-                Despesas do mês:{' '}
-                <span className="money-value">{currencyFormatter.format(currentMonthProjection.totalObligations)}</span>
-              </p>
-              <p>
-                Status do mês:{' '}
-                <span className={`status-pill ${getBalanceTone(currentMonthProjection.balance)}`}>
-                  {getMonthStatus(currentMonthProjection.balance)}
-                </span>
-              </p>
+              </header>
+
+              <section className="home-commitments">
+                <h3>Compromissos do mês</h3>
+                {currentMonthCommitments.length > 0 ? (
+                  <ul className="home-commitments-list">
+                    {currentMonthCommitments.map((item) => (
+                      <li key={`commitment-${item.kind}-${item.id}`} className="home-commitment-item">
+                        <div>
+                          <p className="home-commitment-title">{item.title}</p>
+                          <p className="home-commitment-meta">
+                            Vencimento: {item.dueDay ? String(item.dueDay).padStart(2, '0') : '--'} • {item.kind}
+                          </p>
+                        </div>
+                        <p className="home-commitment-value">{currencyFormatter.format(item.amount)}</p>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p>Sem compromissos ativos para este mês.</p>
+                )}
+              </section>
+
               <section className="current-month-blocks">
-                <h3>Blocos do mês atual</h3>
-                <div className="current-month-blocks-grid">
-                  <article className="month-block-card">
-                    <div className="month-block-header">
-                      <h4>📅 Bloco 10</h4>
-                      <span className={`status-pill ${getBalanceTone(currentMonthProjection.block10.balance)}`}>
-                        {getBlockStatus(currentMonthProjection.block10.balance)}
-                      </span>
-                    </div>
-                    <p>Entradas: {currencyFormatter.format(currentMonthProjection.block10.entries)}</p>
-                    <p>Despesas: {currencyFormatter.format(currentMonthProjection.block10.obligations)}</p>
-                    <p>
-                      Saldo:{' '}
-                      <span className={`money-value ${getBalanceTone(currentMonthProjection.block10.balance)}`}>
-                        {currencyFormatter.format(currentMonthProjection.block10.balance)}
-                      </span>
-                    </p>
-
-                  </article>
-                  <article className="month-block-card">
-                    <div className="month-block-header">
-                      <h4>💳 Bloco 25</h4>
-                      <span className={`status-pill ${getBalanceTone(currentMonthProjection.block25.balance)}`}>
-                        {getBlockStatus(currentMonthProjection.block25.balance)}
-                      </span>
-                    </div>
-                    <p>Entradas: {currencyFormatter.format(currentMonthProjection.block25.entries)}</p>
-                    <p>Despesas: {currencyFormatter.format(currentMonthProjection.block25.obligations)}</p>
-                    <p>
-                      Saldo:{' '}
-                      <span className={`money-value ${getBalanceTone(currentMonthProjection.block25.balance)}`}>
-                        {currencyFormatter.format(currentMonthProjection.block25.balance)}
-                      </span>
-                    </p>
-
-                  </article>
-                </div>
-              </section>
-              <div className="section-separator" />
-
-              <section>
-                <h3>Ação principal</h3>
-                <p>Use o botão flutuante + para registrar entrada ou despesa rapidamente.</p>
-              </section>
-              <div className="section-separator" />
-
-              <section>
-                <h3>Itens importantes do mês</h3>
-                <ul>
-                  <li>
-                    Entradas pendentes: <strong>{currentMonthPendingSummary.pendingEntries}</strong>
-                  </li>
-                  <li>
-                    Despesas pendentes: <strong>{currentMonthPendingSummary.pendingObligations}</strong>
-                  </li>
-                  <li>
-                    Saldo realizado parcial:{' '}
-                    <span className={`money-value ${getBalanceTone(currentMonthPlannedVsActual?.partialActualBalance ?? 0)}`}>
-                      {currencyFormatter.format(currentMonthPlannedVsActual?.partialActualBalance ?? 0)}
+                <h3>Blocos do mês</h3>
+                <details className="home-block-details">
+                  <summary>
+                    Bloco 10 • {currentMonthBlock10Items.length} itens
+                  </summary>
+                  {currentMonthBlock10Items.length > 0 ? (
+                    <ul className="home-block-list">
+                      {currentMonthBlock10Items.map((item) => (
+                        <li key={`block10-${item.kind}-${item.id}`} className="home-block-list-item">
+                          <span>{item.title}</span>
+                          <span>{item.dueDay ? String(item.dueDay).padStart(2, '0') : '--'}</span>
+                          <span>{currencyFormatter.format(item.amount)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p>Sem lançamentos no bloco 10.</p>
+                  )}
+                  <p className="home-block-mini-summary">
+                    Entradas: {currencyFormatter.format(currentMonthProjection.block10.entries)} • Despesas:{' '}
+                    {currencyFormatter.format(currentMonthProjection.block10.obligations)} • Saldo:{' '}
+                    <span className={`money-value ${getBalanceTone(currentMonthProjection.block10.balance)}`}>
+                      {currencyFormatter.format(currentMonthProjection.block10.balance)}
                     </span>
-                  </li>
-                </ul>
+                  </p>
+                </details>
+
+                <details className="home-block-details">
+                  <summary>
+                    Bloco 25 • {currentMonthBlock25Items.length} itens
+                  </summary>
+                  {currentMonthBlock25Items.length > 0 ? (
+                    <ul className="home-block-list">
+                      {currentMonthBlock25Items.map((item) => (
+                        <li key={`block25-${item.kind}-${item.id}`} className="home-block-list-item">
+                          <span>{item.title}</span>
+                          <span>{item.dueDay ? String(item.dueDay).padStart(2, '0') : '--'}</span>
+                          <span>{currencyFormatter.format(item.amount)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p>Sem lançamentos no bloco 25.</p>
+                  )}
+                  <p className="home-block-mini-summary">
+                    Entradas: {currencyFormatter.format(currentMonthProjection.block25.entries)} • Despesas:{' '}
+                    {currencyFormatter.format(currentMonthProjection.block25.obligations)} • Saldo:{' '}
+                    <span className={`money-value ${getBalanceTone(currentMonthProjection.block25.balance)}`}>
+                      {currencyFormatter.format(currentMonthProjection.block25.balance)}
+                    </span>
+                  </p>
+                </details>
+              </section>
+
+              <section className="home-month-total">
+                <h3>Total geral do mês</h3>
+                <p>
+                  Entradas: <span className="money-value">{currencyFormatter.format(currentMonthProjection.totalEntries)}</span>
+                </p>
+                <p>
+                  Despesas:{' '}
+                  <span className="money-value">{currencyFormatter.format(currentMonthProjection.totalObligations)}</span>
+                </p>
+                <p>
+                  Saldo final:{' '}
+                  <span className={`money-value ${getBalanceTone(currentMonthProjection.balance)}`}>
+                    {currencyFormatter.format(currentMonthProjection.balance)}
+                  </span>
+                </p>
               </section>
             </>
           ) : (

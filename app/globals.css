@@ -71,6 +71,12 @@ body {
   background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
 }
 
+
+.app-header {
+  border: 1px solid #dbe5ff;
+  background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
+}
+
 .brand-row {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -202,6 +208,130 @@ body {
 
 .home-section-title {
   margin-bottom: 0.55rem;
+}
+
+.home-main-card {
+  border-color: #d9ece1;
+  background: linear-gradient(180deg, #ffffff 0%, #f6fbf7 100%);
+}
+
+.home-month-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: 0.5rem;
+}
+
+.home-month-title {
+  margin: 0;
+  font-size: 1.18rem;
+  font-weight: 700;
+  color: #14532d;
+}
+
+.home-month-title span {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #4b5563;
+}
+
+.home-commitments h3,
+.current-month-blocks h3,
+.home-month-total h3,
+.home-support-card h2 {
+  font-size: 0.95rem;
+  margin-bottom: 0.45rem;
+}
+
+.home-commitments-list,
+.home-block-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.38rem;
+}
+
+.home-commitment-item,
+.home-block-list-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.55rem;
+  align-items: center;
+  border: 1px solid #dce9df;
+  border-radius: 10px;
+  padding: 0.5rem 0.58rem;
+  background: #fff;
+}
+
+.home-commitment-title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.home-commitment-meta {
+  margin: 0.1rem 0 0;
+  font-size: 0.74rem;
+}
+
+.home-commitment-value {
+  margin: 0;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #14532d;
+}
+
+.home-block-details {
+  margin-top: 0.45rem;
+  background: #fbfefc;
+  border-color: #dce9df;
+}
+
+.home-block-details summary {
+  font-size: 0.83rem;
+  font-weight: 600;
+  color: #14532d;
+}
+
+.home-block-list-item {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  font-size: 0.8rem;
+}
+
+.home-block-mini-summary {
+  margin-top: 0.5rem;
+  font-size: 0.78rem;
+}
+
+.home-month-total {
+  border-top: 1px solid #dce9df;
+  padding-top: 0.55rem;
+}
+
+.home-month-total p {
+  margin: 0.15rem 0;
+  font-size: 0.82rem;
+}
+
+.pending-alerts-compact {
+  border-left-width: 3px;
+  padding: 0.65rem;
+}
+
+.pending-alerts-compact details {
+  margin-top: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.pending-alerts-summary {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #9a3412;
 }
 
 .main-balance-value {
@@ -956,6 +1086,20 @@ tr.is-safe-month {
     padding: 0.75rem;
   }
 
+  .home-month-title {
+    font-size: 1.06rem;
+  }
+
+  .home-commitment-title {
+    font-size: 0.82rem;
+  }
+
+  .home-commitment-meta,
+  .home-block-list-item,
+  .home-month-total p {
+    font-size: 0.76rem;
+  }
+
   .brand-logo-placeholder {
     width: 2.3rem;
     height: 2.3rem;
@@ -988,4 +1132,10 @@ tr.is-safe-month {
     border-bottom: 0;
     border-radius: 1rem 1rem 0 0;
   }
-  }
+}
+
+.home-main-card .status-positive {
+  background: #ecfdf3;
+  color: #166534;
+  border-color: #bbf7d0;
+}
