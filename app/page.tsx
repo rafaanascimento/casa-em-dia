@@ -120,6 +120,8 @@ type MonthRiskAnalysis = {
   messages: string[];
 };
 
+type DashboardSection = 'home' | 'lancamentos' | 'projecao' | 'perfil';
+
 const PROJECTION_MONTHS = 6;
 const MONTH_KEY_REGEX = /^(\d{4})-(\d{1,2})$/;
 const PROJECTION_VIEW_MODE_STORAGE_KEY = 'casa-em-dia:projection-view-mode';
@@ -394,6 +396,9 @@ export default function HomePage() {
   const [familyName, setFamilyName] = useState('');
   const [hasFamilyMembership, setHasFamilyMembership] = useState(false);
   const [projectionViewMode, setProjectionViewMode] = useState<'monthly' | 'blocks'>('monthly');
+  const [activeSection, setActiveSection] = useState<DashboardSection>('home');
+  const [launchTarget, setLaunchTarget] = useState<'entry' | 'obligation' | null>(null);
+  const [isFabOpen, setIsFabOpen] = useState(false);
   const [entryForm, setEntryForm] = useState<EntryFormState>(initialEntryForm);
   const [obligationForm, setObligationForm] = useState<ObligationFormState>(initialObligationForm);
   const [entries, setEntries] = useState<EntryRow[]>([]);
@@ -460,6 +465,20 @@ export default function HomePage() {
 
     window.localStorage.setItem(EXPANDED_MONTH_KEYS_STORAGE_KEY, JSON.stringify(expandedMonthKeys));
   }, [expandedMonthKeys]);
+
+  useEffect(() => {
+    if (activeSection !== 'lancamentos' || !launchTarget) {
+      return;
+    }
+
+    const targetId = launchTarget === 'entry' ? 'entry-create-section' : 'obligation-create-section';
+    const targetElement = document.getElementById(targetId);
+
+    if (targetElement) {
+      targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setLaunchTarget(null);
+    }
+  }, [activeSection, launchTarget]);
 
   const loadFinancialData = async (currentFamilyId: string) => {
     setIsLoadingProjectionData(true);
@@ -734,6 +753,76 @@ export default function HomePage() {
   const getOccurrenceStatus = (sourceType: 'entry' | 'obligation', sourceId: string, monthKey: string) =>
     getOccurrence(sourceType, sourceId, monthKey)?.status ?? 'pending';
 
+  const currentMonthKey = useMemo(() => {
+    const currentDate = new Date();
+    return `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+  }, []);
+
+  const greetingMessage = useMemo(() => {
+    const currentHour = new Date().getHours();
+
+    if (currentHour < 12) {
+      return 'Bom dia';
+    }
+
+    if (currentHour < 18) {
+      return 'Boa tarde';
+    }
+
+    return 'Boa noite';
+  }, []);
+
+  const currentMonthPendingMessages = useMemo(() => {
+    const currentMonthDetails = monthDetailsByKey.get(currentMonthKey);
+    const currentMonthEntries = currentMonthDetails?.entries ?? [];
+    const currentMonthObligations = currentMonthDetails?.obligations ?? [];
+
+    const hasPendingEntries = currentMonthEntries.some(
+      (entryItem) => getOccurrenceStatus('entry', entryItem.id, currentMonthKey) === 'pending'
+    );
+    const hasPendingObligations = currentMonthObligations.some(
+      (obligationItem) => getOccurrenceStatus('obligation', obligationItem.id, currentMonthKey) === 'pending'
+    );
+    const messages: string[] = [];
+
+    if (hasPendingEntries) {
+      messages.push('Você possui entradas não recebidas neste mês');
+    }
+
+    if (hasPendingObligations) {
+      messages.push('Você possui despesas não pagas neste mês');
+    }
+
+    if (hasPendingEntries || hasPendingObligations) {
+      messages.push('Existem pendências financeiras no mês atual');
+    }
+
+    return messages;
+  }, [monthDetailsByKey, currentMonthKey, monthlyOccurrences, familyId]);
+
+  const currentMonthProjection = useMemo(
+    () => projection.find((month) => month.key === currentMonthKey) ?? null,
+    [projection, currentMonthKey]
+  );
+
+  const currentMonthPendingSummary = useMemo(() => {
+    const currentMonthDetails = monthDetailsByKey.get(currentMonthKey);
+    const currentMonthEntries = currentMonthDetails?.entries ?? [];
+    const currentMonthObligations = currentMonthDetails?.obligations ?? [];
+
+    const pendingEntries = currentMonthEntries.filter(
+      (entryItem) => getOccurrenceStatus('entry', entryItem.id, currentMonthKey) === 'pending'
+    ).length;
+    const pendingObligations = currentMonthObligations.filter(
+      (obligationItem) => getOccurrenceStatus('obligation', obligationItem.id, currentMonthKey) === 'pending'
+    ).length;
+
+    return {
+      pendingEntries,
+      pendingObligations
+    };
+  }, [monthDetailsByKey, currentMonthKey, monthlyOccurrences, familyId]);
+
   const monthPlannedVsActualByKey = useMemo(() => {
     const plannedVsActualMap = new Map<string, MonthPlannedVsActual>();
 
@@ -839,10 +928,15 @@ export default function HomePage() {
     return riskMap;
   }, [projection]);
 
-  const currentMonthKey = useMemo(() => {
-    const currentDate = new Date();
-    return `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
-  }, []);
+  const currentMonthPlannedVsActual = useMemo(
+    () => monthPlannedVsActualByKey.get(currentMonthKey) ?? null,
+    [monthPlannedVsActualByKey, currentMonthKey]
+  );
+
+  const currentMonthRisk = useMemo<MonthRiskAnalysis>(
+    () => monthRiskByKey.get(currentMonthKey) ?? { level: 'seguro', messages: ['Situação estável para este mês'] },
+    [monthRiskByKey, currentMonthKey]
+  );
 
   const handleSetOccurrenceStatus = async (
     sourceType: 'entry' | 'obligation',
@@ -1295,14 +1389,162 @@ export default function HomePage() {
   return (
     <main className="app-shell">
       <header className="app-header card">
-        <h1 className="app-title">Casa em Dia</h1>
-        <p>Você está autenticado e já possui vínculo com uma família.</p>
+        <div className="brand-row">
+          <div className="brand-logo-placeholder" aria-hidden="true">
+            🏠
+          </div>
+          <div>
+            <p className="brand-greeting">
+              {greetingMessage}
+              {userEmail ? `, ${userEmail.split('@')[0]}` : ''}.
+            </p>
+            <h1 className="app-title">Casa em Dia</h1>
+            <p className="brand-subtitle">Seu painel financeiro familiar</p>
+          </div>
+        </div>
       </header>
-      {userEmail ? <p>Usuário: {userEmail}</p> : null}
+      {activeSection === 'home' && currentMonthPendingMessages.length > 0 ? (
+        <section className="card pending-alerts">
+          <h2 className="pending-alerts-title">Pendências do mês atual</h2>
+          <ul className="pending-alerts-list">
+            {currentMonthPendingMessages.map((message) => (
+              <li key={message}>{message}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <div className="content-grid">
+        {activeSection === 'home' ? (
+        <>
         <section className="card">
-        <h2>Projeção mensal básica</h2>
+          <h2>Painel do mês atual</h2>
+          {currentMonthProjection ? (
+            <>
+              <p className="dashboard-month-label">
+                {currentMonthProjection.label}
+                <span className={`status-pill ${getRiskTone(currentMonthRisk.level)}`}>
+                  {getRiskBadgeLabel(currentMonthRisk.level)}
+                </span>
+              </p>
+              <p>
+                Saldo do mês:{' '}
+                <span className={`money-value main-balance-value ${getBalanceTone(currentMonthProjection.balance)}`}>
+                  {currencyFormatter.format(currentMonthProjection.balance)}
+                </span>
+              </p>
+              <p>
+                Entradas do mês:{' '}
+                <span className="money-value">{currencyFormatter.format(currentMonthProjection.totalEntries)}</span>
+              </p>
+              <p>
+                Despesas do mês:{' '}
+                <span className="money-value">{currencyFormatter.format(currentMonthProjection.totalObligations)}</span>
+              </p>
+              <p>
+                Status do mês:{' '}
+                <span className={`status-pill ${getBalanceTone(currentMonthProjection.balance)}`}>
+                  {getMonthStatus(currentMonthProjection.balance)}
+                </span>
+              </p>
+              <section className="current-month-blocks">
+                <h3>Blocos do mês atual</h3>
+                <div className="current-month-blocks-grid">
+                  <article className="month-block-card">
+                    <h4>📅 Bloco 10</h4>
+                    <p>Entradas: {currencyFormatter.format(currentMonthProjection.block10.entries)}</p>
+                    <p>Despesas: {currencyFormatter.format(currentMonthProjection.block10.obligations)}</p>
+                    <p>
+                      Saldo:{' '}
+                      <span className={`money-value ${getBalanceTone(currentMonthProjection.block10.balance)}`}>
+                        {currencyFormatter.format(currentMonthProjection.block10.balance)}
+                      </span>
+                    </p>
+                    <span className={`status-pill ${getBalanceTone(currentMonthProjection.block10.balance)}`}>
+                      {getBlockStatus(currentMonthProjection.block10.balance)}
+                    </span>
+                  </article>
+                  <article className="month-block-card">
+                    <h4>💳 Bloco 25</h4>
+                    <p>Entradas: {currencyFormatter.format(currentMonthProjection.block25.entries)}</p>
+                    <p>Despesas: {currencyFormatter.format(currentMonthProjection.block25.obligations)}</p>
+                    <p>
+                      Saldo:{' '}
+                      <span className={`money-value ${getBalanceTone(currentMonthProjection.block25.balance)}`}>
+                        {currencyFormatter.format(currentMonthProjection.block25.balance)}
+                      </span>
+                    </p>
+                    <span className={`status-pill ${getBalanceTone(currentMonthProjection.block25.balance)}`}>
+                      {getBlockStatus(currentMonthProjection.block25.balance)}
+                    </span>
+                  </article>
+                </div>
+              </section>
+              <div className="section-separator" />
+
+              <section>
+                <h3>Ação principal</h3>
+                <p>Use o botão flutuante + para registrar entrada ou despesa rapidamente.</p>
+              </section>
+              <div className="section-separator" />
+
+              <section>
+                <h3>Itens importantes do mês</h3>
+                <ul>
+                  <li>
+                    Entradas pendentes: <strong>{currentMonthPendingSummary.pendingEntries}</strong>
+                  </li>
+                  <li>
+                    Despesas pendentes: <strong>{currentMonthPendingSummary.pendingObligations}</strong>
+                  </li>
+                  <li>
+                    Saldo realizado parcial:{' '}
+                    <span className={`money-value ${getBalanceTone(currentMonthPlannedVsActual?.partialActualBalance ?? 0)}`}>
+                      {currencyFormatter.format(currentMonthPlannedVsActual?.partialActualBalance ?? 0)}
+                    </span>
+                  </li>
+                </ul>
+              </section>
+            </>
+          ) : (
+            <p>Sem dados disponíveis para o mês atual.</p>
+          )}
+        </section>
+        <section className="card executive-card">
+          <h2>Resumo executivo</h2>
+          <p>
+            Situação do mês:{' '}
+            <span className={`status-pill ${getRiskTone(currentMonthRisk.level)}`}>
+              {getRiskBadgeLabel(currentMonthRisk.level)}
+            </span>
+          </p>
+          <ul>
+            {currentMonthRisk.messages.map((message) => (
+              <li key={`current-risk-${message}`}>{message}</li>
+            ))}
+          </ul>
+          <p>
+            Saldo planejado:{' '}
+            <span className={`money-value ${getBalanceTone(currentMonthPlannedVsActual?.plannedBalance ?? 0)}`}>
+              {currencyFormatter.format(currentMonthPlannedVsActual?.plannedBalance ?? 0)}
+            </span>
+          </p>
+          <p>
+            Saldo parcial realizado:{' '}
+            <span className={`money-value ${getBalanceTone(currentMonthPlannedVsActual?.partialActualBalance ?? 0)}`}>
+              {currencyFormatter.format(currentMonthPlannedVsActual?.partialActualBalance ?? 0)}
+            </span>
+          </p>
+        </section>
+        </>
+        ) : null}
+
+        {activeSection === 'projecao' ? (
+        <section className="card">
+        <h2>Projeção completa (secundária)</h2>
+        <p>Acompanhe os próximos meses quando precisar de uma visão detalhada.</p>
+        <details>
+          <summary>Expandir projeção mensal</summary>
         <div className="button-row">
           <button type="button" onClick={() => setProjectionViewMode('monthly')}>
             Visão do mês
@@ -1344,9 +1586,9 @@ export default function HomePage() {
                       {getRiskBadgeLabel(monthRiskByKey.get(month.key)?.level ?? 'seguro')}
                     </span>
                   </td>
-                  <td>{currencyFormatter.format(month.totalEntries)}</td>
-                  <td>{currencyFormatter.format(month.totalObligations)}</td>
-                  <td>{currencyFormatter.format(month.balance)}</td>
+                  <td><span className="money-value">{currencyFormatter.format(month.totalEntries)}</span></td>
+                  <td><span className="money-value">{currencyFormatter.format(month.totalObligations)}</span></td>
+                  <td><span className={`money-value ${getBalanceTone(month.balance)}`}>{currencyFormatter.format(month.balance)}</span></td>
                   <td>{getMonthAlerts(month).join(' • ') || 'Sem alertas'}</td>
                 </tr>
               ))}
@@ -1387,12 +1629,12 @@ export default function HomePage() {
                       {getRiskBadgeLabel(monthRiskByKey.get(month.key)?.level ?? 'seguro')}
                     </span>
                   </td>
-                  <td>{currencyFormatter.format(month.block10.entries)}</td>
-                  <td>{currencyFormatter.format(month.block10.obligations)}</td>
-                  <td>{currencyFormatter.format(month.block10.balance)}</td>
-                  <td>{currencyFormatter.format(month.block25.entries)}</td>
-                  <td>{currencyFormatter.format(month.block25.obligations)}</td>
-                  <td>{currencyFormatter.format(month.block25.balance)}</td>
+                  <td><span className="money-value">{currencyFormatter.format(month.block10.entries)}</span></td>
+                  <td><span className="money-value">{currencyFormatter.format(month.block10.obligations)}</span></td>
+                  <td><span className={`money-value ${getBalanceTone(month.block10.balance)}`}>{currencyFormatter.format(month.block10.balance)}</span></td>
+                  <td><span className="money-value">{currencyFormatter.format(month.block25.entries)}</span></td>
+                  <td><span className="money-value">{currencyFormatter.format(month.block25.obligations)}</span></td>
+                  <td><span className={`money-value ${getBalanceTone(month.block25.balance)}`}>{currencyFormatter.format(month.block25.balance)}</span></td>
                   <td>{getMonthAlerts(month).join(' • ') || 'Sem alertas'}</td>
                 </tr>
               ))}
@@ -1607,9 +1849,13 @@ export default function HomePage() {
             })}
           </section>
         ) : null}
+        </details>
         </section>
+        ) : null}
 
-        <section className="card">
+        {activeSection === 'lancamentos' ? (
+        <>
+        <section className="card" id="entry-create-section">
         <h2>Cadastrar entrada</h2>
         <form onSubmit={handleCreateEntry}>
           <div>
@@ -1721,7 +1967,7 @@ export default function HomePage() {
         {entrySuccessMessage ? <p>{entrySuccessMessage}</p> : null}
         </section>
 
-        <section className="card">
+        <section className="card" id="obligation-create-section">
         <h2>Cadastrar despesa</h2>
         <form onSubmit={handleCreateObligation}>
           <div>
@@ -2009,39 +2255,26 @@ export default function HomePage() {
               </button>
             </form>
           ) : null}
-          <table>
-            <thead>
-              <tr>
-                <th>Título</th>
-                <th>Valor</th>
-                <th>Recorrência</th>
-                <th>Data inicial</th>
-                <th>Bloco</th>
-                <th>Ativo</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {entryList.map((entryItem, index) => (
-                <tr key={`${entryItem.title}-${entryItem.start_date}-${entryItem.amount}-${index}`}>
-                  <td>{entryItem.title}</td>
-                  <td>{currencyFormatter.format(Number(entryItem.amount))}</td>
-                  <td>{entryItem.recurrence_type}</td>
-                  <td>{entryItem.start_date}</td>
-                  <td>{entryItem.block_type}</td>
-                  <td>{entryItem.is_active ? 'Sim' : 'Não'}</td>
-                  <td>
-                    <button type="button" onClick={() => handleStartEditEntry(entryItem)}>
-                      Editar
-                    </button>
-                    <button type="button" onClick={() => handleDeleteEntry(entryItem.id)}>
-                      Excluir
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="mobile-list-grid">
+            {entryList.map((entryItem, index) => (
+              <article key={`${entryItem.title}-${entryItem.start_date}-${entryItem.amount}-${index}`} className="mobile-list-card">
+                <p className="mobile-list-title">{entryItem.title}</p>
+                <p className="mobile-list-value">{currencyFormatter.format(Number(entryItem.amount))}</p>
+                <p>Tipo: Entrada</p>
+                <p>Data: {entryItem.start_date}</p>
+                <p>Bloco financeiro: {entryItem.block_type}</p>
+                <p>Status: {entryItem.is_active ? 'Ativo' : 'Inativo'}</p>
+                <div className="button-row">
+                  <button type="button" onClick={() => handleStartEditEntry(entryItem)}>
+                    Editar
+                  </button>
+                  <button type="button" onClick={() => handleDeleteEntry(entryItem.id)}>
+                    Excluir
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
         </section>
 
         <section>
@@ -2219,51 +2452,125 @@ export default function HomePage() {
               </button>
             </form>
           ) : null}
-          <table>
-            <thead>
-              <tr>
-                <th>Título</th>
-                <th>Valor</th>
-                <th>Tipo</th>
-                <th>Recorrência</th>
-                <th>Parcelas</th>
-                <th>Data inicial</th>
-                <th>Bloco</th>
-                <th>Ativo</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {obligationList.map((obligationItem, index) => (
-                <tr
-                  key={`${obligationItem.title}-${obligationItem.start_date}-${obligationItem.amount}-${index}`}
-                >
-                  <td>{obligationItem.title}</td>
-                  <td>{currencyFormatter.format(Number(obligationItem.amount))}</td>
-                  <td>{obligationItem.type}</td>
-                  <td>{obligationItem.recurrence_type}</td>
-                  <td>{obligationItem.total_installments ?? '-'}</td>
-                  <td>{obligationItem.start_date}</td>
-                  <td>{obligationItem.block_type}</td>
-                  <td>{obligationItem.is_active ? 'Sim' : 'Não'}</td>
-                  <td>
-                    <button type="button" onClick={() => handleStartEditObligation(obligationItem)}>
-                      Editar
-                    </button>
-                    <button type="button" onClick={() => handleDeleteObligation(obligationItem.id)}>
-                      Excluir
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="mobile-list-grid">
+            {obligationList.map((obligationItem, index) => (
+              <article key={`${obligationItem.title}-${obligationItem.start_date}-${obligationItem.amount}-${index}`} className="mobile-list-card">
+                <p className="mobile-list-title">{obligationItem.title}</p>
+                <p className="mobile-list-value">{currencyFormatter.format(Number(obligationItem.amount))}</p>
+                <p>Tipo: Despesa ({obligationItem.type})</p>
+                <p>Data: {obligationItem.start_date}</p>
+                <p>Bloco financeiro: {obligationItem.block_type}</p>
+                <p>Status: {obligationItem.is_active ? 'Ativo' : 'Inativo'}</p>
+                {obligationItem.total_installments ? <p>Parcelas: {obligationItem.total_installments}</p> : null}
+                <div className="button-row">
+                  <button type="button" onClick={() => handleStartEditObligation(obligationItem)}>
+                    Editar
+                  </button>
+                  <button type="button" onClick={() => handleDeleteObligation(obligationItem.id)}>
+                    Excluir
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
         </section>
+        </>
+        ) : null}
+
+        {activeSection === 'perfil' ? (
+          <section className="card">
+            <h2>Perfil/Menu</h2>
+            <p>Usuário autenticado: {userEmail || 'Não identificado'}</p>
+            <p>Área preparada para futura foto de perfil e configurações.</p>
+            <button type="button" onClick={handleLogout}>
+              Sair
+            </button>
+          </section>
+        ) : null}
       </div>
 
-      <button type="button" onClick={handleLogout}>
-        Sair
-      </button>
+      <div className="bottom-safe-spacer" aria-hidden="true" />
+      {isFabOpen ? (
+        <button
+          type="button"
+          className="fab-overlay"
+          aria-label="Fechar ações rápidas"
+          onClick={() => setIsFabOpen(false)}
+        />
+      ) : null}
+      <div className="fab-wrapper" onClick={(event) => event.stopPropagation()}>
+        {isFabOpen ? (
+          <div className="fab-actions" onClick={(event) => event.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveSection('lancamentos');
+                setLaunchTarget('entry');
+                setIsFabOpen(false);
+              }}
+            >
+              Nova entrada
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveSection('lancamentos');
+                setLaunchTarget('obligation');
+                setIsFabOpen(false);
+              }}
+            >
+              Nova despesa
+            </button>
+          </div>
+        ) : null}
+        <button
+          type="button"
+          className="fab-button"
+          aria-expanded={isFabOpen}
+          aria-label="Abrir ações rápidas"
+          onClick={(event) => {
+            event.stopPropagation();
+            setIsFabOpen((previous) => !previous);
+          }}
+        >
+          +
+        </button>
+      </div>
+
+      <nav className="bottom-nav" aria-label="Navegação mobile">
+        <button
+          type="button"
+          className={activeSection === 'home' ? 'is-section-active' : ''}
+          onClick={() => setActiveSection('home')}
+        >
+          <span aria-hidden="true">🏠</span>
+          <span>Home</span>
+        </button>
+        <button
+          type="button"
+          className={activeSection === 'lancamentos' ? 'is-section-active' : ''}
+          onClick={() => setActiveSection('lancamentos')}
+        >
+          <span aria-hidden="true">🧾</span>
+          <span>Lançamentos</span>
+        </button>
+        <button
+          type="button"
+          className={activeSection === 'projecao' ? 'is-section-active' : ''}
+          onClick={() => setActiveSection('projecao')}
+        >
+          <span aria-hidden="true">📈</span>
+          <span>Projeção</span>
+        </button>
+        <button
+          type="button"
+          className={activeSection === 'perfil' ? 'is-section-active' : ''}
+          onClick={() => setActiveSection('perfil')}
+        >
+          <span aria-hidden="true">👤</span>
+          <span>Perfil</span>
+        </button>
+      </nav>
 
       {error ? <p>{error}</p> : null}
     </main>
