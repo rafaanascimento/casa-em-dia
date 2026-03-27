@@ -1593,317 +1593,308 @@ export default function HomePage() {
         ) : null}
 
         {activeSection === 'projecao' ? (
-        <section className="card">
-        <h2>Projeção completa (secundária)</h2>
-        <p>Acompanhe os próximos meses quando precisar de uma visão detalhada.</p>
-        <details>
-          <summary>Expandir projeção mensal</summary>
-        <div className="button-row">
-          <button type="button" onClick={() => setProjectionViewMode('monthly')}>
-            Visão do mês
-          </button>
-          <button type="button" onClick={() => setProjectionViewMode('blocks')}>
-            Visão por blocos
-          </button>
-        </div>
+          <section className="card projection-section">
+            <h2>Projeção completa</h2>
+            <p>Acompanhe os próximos meses em uma leitura objetiva para celular.</p>
 
-        {isLoadingProjectionData ? <p>Carregando projeção...</p> : null}
+            <details>
+              <summary>Expandir projeção mensal</summary>
 
-        {!isLoadingProjectionData && projectionViewMode === 'monthly' ? (
-          <table>
-            <thead>
-              <tr>
-                <th>Mês</th>
-                <th>Entradas</th>
-                <th>Despesas</th>
-                <th>Saldo previsto</th>
-                <th>Alertas</th>
-              </tr>
-            </thead>
-            <tbody>
-              {projection.map((month) => (
-                <tr
-                  key={month.key}
-                  className={`${month.key === currentMonthKey ? 'is-current-month' : ''} ${
-                    monthRiskByKey.get(month.key)?.level === 'risco'
-                      ? 'is-risk-month'
-                      : monthRiskByKey.get(month.key)?.level === 'atenção'
-                        ? 'is-warning-month'
-                        : 'is-safe-month'
-                  }`}
-                >
-                  <td>
-                    {month.label}
-                    {month.key === currentMonthKey ? <span className="badge-current">Atual</span> : null}
-                    <span className={`status-pill ${getRiskTone(monthRiskByKey.get(month.key)?.level ?? 'seguro')}`}>
-                      {getRiskBadgeLabel(monthRiskByKey.get(month.key)?.level ?? 'seguro')}
-                    </span>
-                  </td>
-                  <td><span className="money-value">{currencyFormatter.format(month.totalEntries)}</span></td>
-                  <td><span className="money-value">{currencyFormatter.format(month.totalObligations)}</span></td>
-                  <td><span className={`money-value ${getBalanceTone(month.balance)}`}>{currencyFormatter.format(month.balance)}</span></td>
-                  <td>{getMonthAlerts(month).join(' • ') || 'Sem alertas'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : null}
+              <div className="button-row projection-view-toggle">
+                <button type="button" onClick={() => setProjectionViewMode('monthly')}>
+                  Visão mensal
+                </button>
+                <button type="button" onClick={() => setProjectionViewMode('blocks')}>
+                  Visão por blocos
+                </button>
+              </div>
 
-        {!isLoadingProjectionData && projectionViewMode === 'blocks' ? (
-          <table>
-            <thead>
-              <tr>
-                <th>Mês</th>
-                <th>Entradas bloco 10</th>
-                <th>Despesas bloco 10</th>
-                <th>Saldo bloco 10</th>
-                <th>Entradas bloco 25</th>
-                <th>Despesas bloco 25</th>
-                <th>Saldo bloco 25</th>
-                <th>Alertas</th>
-              </tr>
-            </thead>
-            <tbody>
-              {projection.map((month) => (
-                <tr
-                  key={month.key}
-                  className={`${month.key === currentMonthKey ? 'is-current-month' : ''} ${
-                    monthRiskByKey.get(month.key)?.level === 'risco'
-                      ? 'is-risk-month'
-                      : monthRiskByKey.get(month.key)?.level === 'atenção'
-                        ? 'is-warning-month'
-                        : 'is-safe-month'
-                  }`}
-                >
-                  <td>
-                    {month.label}
-                    {month.key === currentMonthKey ? <span className="badge-current">Atual</span> : null}
-                    <span className={`status-pill ${getRiskTone(monthRiskByKey.get(month.key)?.level ?? 'seguro')}`}>
-                      {getRiskBadgeLabel(monthRiskByKey.get(month.key)?.level ?? 'seguro')}
-                    </span>
-                  </td>
-                  <td><span className="money-value">{currencyFormatter.format(month.block10.entries)}</span></td>
-                  <td><span className="money-value">{currencyFormatter.format(month.block10.obligations)}</span></td>
-                  <td><span className={`money-value ${getBalanceTone(month.block10.balance)}`}>{currencyFormatter.format(month.block10.balance)}</span></td>
-                  <td><span className="money-value">{currencyFormatter.format(month.block25.entries)}</span></td>
-                  <td><span className="money-value">{currencyFormatter.format(month.block25.obligations)}</span></td>
-                  <td><span className={`money-value ${getBalanceTone(month.block25.balance)}`}>{currencyFormatter.format(month.block25.balance)}</span></td>
-                  <td>{getMonthAlerts(month).join(' • ') || 'Sem alertas'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : null}
+              {isLoadingProjectionData ? <p>Carregando projeção...</p> : null}
 
-        {!isLoadingProjectionData ? (
-          <section>
-            <h3>Resumos mensais</h3>
-            {projection.map((month) => {
-              const monthAlerts = getMonthAlerts(month);
-              const nextMonthAlerts = nextMonthAlertsByKey.get(month.key) ?? [];
-              const monthDetails = monthDetailsByKey.get(month.key);
-              const monthPlannedVsActual = monthPlannedVsActualByKey.get(month.key);
-              const monthRisk = monthRiskByKey.get(month.key);
-              const plannedBalance = monthPlannedVsActual?.plannedBalance ?? month.balance;
-              const partialActualBalance = monthPlannedVsActual?.partialActualBalance ?? 0;
-              const currentSituation = getCurrentMonthSituation(partialActualBalance, plannedBalance);
-              const expectedComparison = getExpectedComparison(partialActualBalance, plannedBalance);
+              {!isLoadingProjectionData ? (
+                <div className="projection-month-grid">
+                  {projection.map((month) => {
+                    const monthRisk = monthRiskByKey.get(month.key);
+                    const riskLevel = monthRisk?.level ?? 'seguro';
 
-              return (
-                <article
-                  key={`summary-${month.key}`}
-                  className={`month-summary ${
-                    monthRisk?.level === 'risco'
-                      ? 'month-summary-risk'
-                      : monthRisk?.level === 'atenção'
-                        ? 'month-summary-warning'
-                        : 'month-summary-safe'
-                  }`}
-                >
-                  <h4>
-                    {month.label}
-                    {month.key === currentMonthKey ? <span className="badge-current">Atual</span> : null}
-                    <span className={`status-pill ${getRiskTone(monthRisk?.level ?? 'seguro')}`}>
-                      {getRiskBadgeLabel(monthRisk?.level ?? 'seguro')}
-                    </span>
-                  </h4>
-                  <p>Total de entradas previstas: {currencyFormatter.format(month.totalEntries)}</p>
-                  <p>Total de despesas previstas: {currencyFormatter.format(month.totalObligations)}</p>
-                  <p>Saldo previsto: {currencyFormatter.format(month.balance)}</p>
-                  <p>Total do bloco 10: {currencyFormatter.format(month.block10.balance)}</p>
-                  <p>Total do bloco 25: {currencyFormatter.format(month.block25.balance)}</p>
-                  <p>
-                    Status do mês:{' '}
-                    <span className={`status-pill ${getBalanceTone(month.balance)}`}>{getMonthStatus(month.balance)}</span>
-                  </p>
-                  <p>
-                    Status bloco 10:{' '}
-                    <span className={`status-pill ${getBalanceTone(month.block10.balance)}`}>
-                      {getBlockStatus(month.block10.balance)}
-                    </span>
-                  </p>
-                  <p>
-                    Status bloco 25:{' '}
-                    <span className={`status-pill ${getBalanceTone(month.block25.balance)}`}>
-                      {getBlockStatus(month.block25.balance)}
-                    </span>
-                  </p>
-                  <p>Entradas previstas: {currencyFormatter.format(monthPlannedVsActual?.totalEntriesPlanned ?? 0)}</p>
-                  <p>Entradas recebidas: {currencyFormatter.format(monthPlannedVsActual?.totalEntriesReceived ?? 0)}</p>
-                  <p>Entradas pendentes: {currencyFormatter.format(monthPlannedVsActual?.totalEntriesPending ?? 0)}</p>
-                  <p>Despesas previstas: {currencyFormatter.format(monthPlannedVsActual?.totalObligationsPlanned ?? 0)}</p>
-                  <p>Despesas pagas: {currencyFormatter.format(monthPlannedVsActual?.totalObligationsPaid ?? 0)}</p>
-                  <p>Despesas pendentes: {currencyFormatter.format(monthPlannedVsActual?.totalObligationsPending ?? 0)}</p>
-                  <p>Saldo previsto: {currencyFormatter.format(monthPlannedVsActual?.plannedBalance ?? month.balance)}</p>
-                  <p>
-                    Saldo realizado parcial:{' '}
-                    {currencyFormatter.format(monthPlannedVsActual?.partialActualBalance ?? 0)}
-                  </p>
-                  <p>Leitura executiva:</p>
-                  <ul>
-                    <li>{currentSituation.message}</li>
-                    <li>{expectedComparison.message}</li>
-                  </ul>
-                  <p>
-                    Classificação de risco:{' '}
-                    <span className={`status-pill ${getRiskTone(monthRisk?.level ?? 'seguro')}`}>
-                      {monthRisk?.level ?? 'seguro'}
-                    </span>
-                  </p>
-                  <ul>
-                    {(monthRisk?.messages ?? ['Situação estável para este mês']).map((riskMessage) => (
-                      <li key={`${month.key}-risk-${riskMessage}`}>{riskMessage}</li>
-                    ))}
-                  </ul>
-                  <p>Alertas automáticos básicos:</p>
-                  <ul>
-                    {monthAlerts.length > 0 ? (
-                      monthAlerts.map((alert) => <li key={`${month.key}-${alert}`}>{alert}</li>)
-                    ) : (
-                      <li>Sem alertas para este mês.</li>
-                    )}
-                  </ul>
-                  <p>Mudanças para o próximo mês:</p>
-                  <ul>
-                    {nextMonthAlerts.length > 0 ? (
-                      nextMonthAlerts.map((alert) => (
-                        <li key={`${month.key}-next-${alert}`}>{alert}</li>
-                      ))
-                    ) : (
-                      <li>Sem mudanças relevantes para o próximo mês.</li>
-                    )}
-                  </ul>
-                  <details
-                    open={expandedMonthKeys.includes(month.key)}
-                    onToggle={(event) =>
-                      handleMonthDetailsToggle(
-                        month.key,
-                        (event.currentTarget as HTMLDetailsElement).open
-                      )
-                    }
-                  >
-                    <summary>Detalhamento do mês</summary>
+                    return (
+                      <article
+                        key={`projection-card-${month.key}`}
+                        className={`projection-month-card ${
+                          riskLevel === 'risco'
+                            ? 'projection-month-card-risk'
+                            : riskLevel === 'atenção'
+                              ? 'projection-month-card-warning'
+                              : 'projection-month-card-safe'
+                        }`}
+                      >
+                        <header className="projection-month-header">
+                          <p className="projection-month-title">
+                            {month.label}
+                            {month.key === currentMonthKey ? <span className="badge-current">Atual</span> : null}
+                          </p>
+                          <span className={`status-pill ${getRiskTone(riskLevel)}`}>
+                            {getRiskBadgeLabel(riskLevel)}
+                          </span>
+                        </header>
 
-                    <p>Entradas do mês:</p>
-                    <ul>
-                      {(monthDetails?.entries ?? []).length > 0 ? (
-                        (monthDetails?.entries ?? []).map((entryItem) => {
-                          const currentStatus = getOccurrenceStatus('entry', entryItem.id, month.key);
-                          const isReceived = currentStatus === 'received';
-                          const occurrenceKey = `entry-${entryItem.id}-${month.key}`;
-
-                          return (
-                            <li key={`${month.key}-entry-${entryItem.id}`}>
-                              {entryItem.title} — {currencyFormatter.format(Number(entryItem.amount))} (
-                              {entryItem.recurrence_type}, bloco {entryItem.block_type}) —{' '}
-                              <span className={`status-pill ${isReceived ? 'status-success' : 'status-pending'}`}>
-                                {isReceived ? 'Recebida' : 'Pendente'}
+                        {projectionViewMode === 'monthly' ? (
+                          <div className="projection-month-metrics">
+                            <p>
+                              Entradas:{' '}
+                              <span className="money-value">{currencyFormatter.format(month.totalEntries)}</span>
+                            </p>
+                            <p>
+                              Despesas:{' '}
+                              <span className="money-value">{currencyFormatter.format(month.totalObligations)}</span>
+                            </p>
+                            <p>
+                              Saldo previsto:{' '}
+                              <span className={`money-value ${getBalanceTone(month.balance)}`}>
+                                {currencyFormatter.format(month.balance)}
                               </span>
-                              <button
-                                type="button"
-                                disabled={isReceived || isUpdatingOccurrenceKey === occurrenceKey}
-                                onClick={() =>
-                                  handleSetOccurrenceStatus(
-                                    'entry',
-                                    entryItem.id,
-                                    month.key,
-                                    entryItem.title,
-                                    Number(entryItem.amount),
-                                    entryItem.block_type,
-                                    'received'
-                                  )
-                                }
-                              >
-                                {isUpdatingOccurrenceKey === occurrenceKey
-                                  ? 'Salvando...'
-                                  : 'Marcar como recebida'}
-                              </button>
-                            </li>
-                          );
-                        })
-                      ) : (
-                        <li>Sem entradas neste mês.</li>
-                      )}
-                    </ul>
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="projection-blocks-grid">
+                            <article className="projection-block-card">
+                              <h4>Bloco 10</h4>
+                              <p>Entradas: {currencyFormatter.format(month.block10.entries)}</p>
+                              <p>Despesas: {currencyFormatter.format(month.block10.obligations)}</p>
+                              <p>
+                                Saldo:{' '}
+                                <span className={`money-value ${getBalanceTone(month.block10.balance)}`}>
+                                  {currencyFormatter.format(month.block10.balance)}
+                                </span>
+                              </p>
+                            </article>
+                            <article className="projection-block-card">
+                              <h4>Bloco 25</h4>
+                              <p>Entradas: {currencyFormatter.format(month.block25.entries)}</p>
+                              <p>Despesas: {currencyFormatter.format(month.block25.obligations)}</p>
+                              <p>
+                                Saldo:{' '}
+                                <span className={`money-value ${getBalanceTone(month.block25.balance)}`}>
+                                  {currencyFormatter.format(month.block25.balance)}
+                                </span>
+                              </p>
+                            </article>
+                          </div>
+                        )}
 
-                    <p>Despesas do mês:</p>
-                    <ul>
-                      {(monthDetails?.obligations ?? []).length > 0 ? (
-                        (monthDetails?.obligations ?? []).map((obligationItem) => {
-                          const currentStatus = getOccurrenceStatus('obligation', obligationItem.id, month.key);
-                          const isPaid = currentStatus === 'paid';
-                          const occurrenceKey = `obligation-${obligationItem.id}-${month.key}`;
+                        <p className="projection-month-alerts">{getMonthAlerts(month).join(' • ') || 'Sem alertas'}</p>
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : null}
 
-                          return (
-                            <li key={`${month.key}-obligation-${obligationItem.id}`}>
-                              {obligationItem.title} — {currencyFormatter.format(Number(obligationItem.amount))} (
-                              {obligationItem.type}
-                              {obligationItem.type === 'parcelada' && obligationItem.total_installments
-                                ? `, parcelada em ${obligationItem.total_installments}x`
-                                : ''}
-                              , bloco {obligationItem.block_type}) —{' '}
-                              <span className={`status-pill ${isPaid ? 'status-success' : 'status-pending'}`}>
-                                {isPaid ? 'Paga' : 'Pendente'}
-                              </span>
-                              <button
-                                type="button"
-                                disabled={isPaid || isUpdatingOccurrenceKey === occurrenceKey}
-                                onClick={() =>
-                                  handleSetOccurrenceStatus(
-                                    'obligation',
-                                    obligationItem.id,
-                                    month.key,
-                                    obligationItem.title,
-                                    Number(obligationItem.amount),
-                                    obligationItem.block_type,
-                                    'paid'
-                                  )
-                                }
-                              >
-                                {isUpdatingOccurrenceKey === occurrenceKey
-                                  ? 'Salvando...'
-                                  : 'Marcar como paga'}
-                              </button>
-                            </li>
-                          );
-                        })
-                      ) : (
-                        <li>Sem despesas neste mês.</li>
-                      )}
-                    </ul>
+              {!isLoadingProjectionData ? (
+                <section>
+                  <h3>Resumos mensais</h3>
+                  {projection.map((month) => {
+                    const monthAlerts = getMonthAlerts(month);
+                    const nextMonthAlerts = nextMonthAlertsByKey.get(month.key) ?? [];
+                    const monthDetails = monthDetailsByKey.get(month.key);
+                    const monthPlannedVsActual = monthPlannedVsActualByKey.get(month.key);
+                    const monthRisk = monthRiskByKey.get(month.key);
+                    const plannedBalance = monthPlannedVsActual?.plannedBalance ?? month.balance;
+                    const partialActualBalance = monthPlannedVsActual?.partialActualBalance ?? 0;
+                    const currentSituation = getCurrentMonthSituation(partialActualBalance, plannedBalance);
+                    const expectedComparison = getExpectedComparison(partialActualBalance, plannedBalance);
 
-                    <p>Totais do mês:</p>
-                    <p>Entradas: {currencyFormatter.format(month.totalEntries)}</p>
-                    <p>Despesas: {currencyFormatter.format(month.totalObligations)}</p>
-                    <p>Saldo: {currencyFormatter.format(month.balance)}</p>
-                  </details>
-                </article>
-              );
-            })}
+                    return (
+                      <article
+                        key={`summary-${month.key}`}
+                        className={`month-summary ${
+                          monthRisk?.level === 'risco'
+                            ? 'month-summary-risk'
+                            : monthRisk?.level === 'atenção'
+                              ? 'month-summary-warning'
+                              : 'month-summary-safe'
+                        }`}
+                      >
+                        <header className="month-summary-header">
+                          <h4>
+                            {month.label}
+                            {month.key === currentMonthKey ? <span className="badge-current">Atual</span> : null}
+                          </h4>
+                          <span className={`status-pill ${getRiskTone(monthRisk?.level ?? 'seguro')}`}>
+                            {getRiskBadgeLabel(monthRisk?.level ?? 'seguro')}
+                          </span>
+                        </header>
+
+                        <div className="month-summary-groups">
+                          <section className="month-summary-group">
+                            <h5>Previsto</h5>
+                            <p>Entradas: {currencyFormatter.format(month.totalEntries)}</p>
+                            <p>Despesas: {currencyFormatter.format(month.totalObligations)}</p>
+                            <p>Saldo previsto: {currencyFormatter.format(month.balance)}</p>
+                          </section>
+
+                          <section className="month-summary-group">
+                            <h5>Realizado</h5>
+                            <p>Entradas recebidas: {currencyFormatter.format(monthPlannedVsActual?.totalEntriesReceived ?? 0)}</p>
+                            <p>Entradas pendentes: {currencyFormatter.format(monthPlannedVsActual?.totalEntriesPending ?? 0)}</p>
+                            <p>Despesas pagas: {currencyFormatter.format(monthPlannedVsActual?.totalObligationsPaid ?? 0)}</p>
+                            <p>Despesas pendentes: {currencyFormatter.format(monthPlannedVsActual?.totalObligationsPending ?? 0)}</p>
+                            <p>Saldo realizado parcial: {currencyFormatter.format(monthPlannedVsActual?.partialActualBalance ?? 0)}</p>
+                          </section>
+
+                          <section className="month-summary-group">
+                            <h5>Blocos</h5>
+                            <p>Total do bloco 10: {currencyFormatter.format(month.block10.balance)}</p>
+                            <p>Total do bloco 25: {currencyFormatter.format(month.block25.balance)}</p>
+                            <p>
+                              Status do mês:{' '}
+                              <span className={`status-pill ${getBalanceTone(month.balance)}`}>{getMonthStatus(month.balance)}</span>
+                            </p>
+                          </section>
+                        </div>
+
+                        <section className="month-summary-group month-summary-executive">
+                          <h5>Leitura executiva</h5>
+                          <ul>
+                            <li>{currentSituation.message}</li>
+                            <li>{expectedComparison.message}</li>
+                            {(monthRisk?.messages ?? ['Situação estável para este mês']).map((riskMessage) => (
+                              <li key={`${month.key}-risk-${riskMessage}`}>{riskMessage}</li>
+                            ))}
+                          </ul>
+                        </section>
+
+                        <section className="month-summary-group">
+                          <h5>Alertas</h5>
+                          <ul>
+                            {monthAlerts.length > 0 ? (
+                              monthAlerts.map((alert) => <li key={`${month.key}-${alert}`}>{alert}</li>)
+                            ) : (
+                              <li>Sem alertas para este mês.</li>
+                            )}
+                          </ul>
+                          <p>Mudanças para o próximo mês:</p>
+                          <ul>
+                            {nextMonthAlerts.length > 0 ? (
+                              nextMonthAlerts.map((alert) => (
+                                <li key={`${month.key}-next-${alert}`}>{alert}</li>
+                              ))
+                            ) : (
+                              <li>Sem mudanças relevantes para o próximo mês.</li>
+                            )}
+                          </ul>
+                        </section>
+
+                        <details
+                          open={expandedMonthKeys.includes(month.key)}
+                          onToggle={(event) =>
+                            handleMonthDetailsToggle(
+                              month.key,
+                              (event.currentTarget as HTMLDetailsElement).open
+                            )
+                          }
+                        >
+                          <summary>Detalhamento do mês</summary>
+
+                          <p>Entradas do mês:</p>
+                          <ul>
+                            {(monthDetails?.entries ?? []).length > 0 ? (
+                              (monthDetails?.entries ?? []).map((entryItem) => {
+                                const currentStatus = getOccurrenceStatus('entry', entryItem.id, month.key);
+                                const isReceived = currentStatus === 'received';
+                                const occurrenceKey = `entry-${entryItem.id}-${month.key}`;
+
+                                return (
+                                  <li key={`${month.key}-entry-${entryItem.id}`}>
+                                    {entryItem.title} — {currencyFormatter.format(Number(entryItem.amount))} (
+                                    {entryItem.recurrence_type}, bloco {entryItem.block_type}) —{' '}
+                                    <span className={`status-pill ${isReceived ? 'status-success' : 'status-pending'}`}>
+                                      {isReceived ? 'Recebida' : 'Pendente'}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      disabled={isReceived || isUpdatingOccurrenceKey === occurrenceKey}
+                                      onClick={() =>
+                                        handleSetOccurrenceStatus(
+                                          'entry',
+                                          entryItem.id,
+                                          month.key,
+                                          entryItem.title,
+                                          Number(entryItem.amount),
+                                          entryItem.block_type,
+                                          'received'
+                                        )
+                                      }
+                                    >
+                                      {isUpdatingOccurrenceKey === occurrenceKey
+                                        ? 'Salvando...'
+                                        : 'Marcar como recebida'}
+                                    </button>
+                                  </li>
+                                );
+                              })
+                            ) : (
+                              <li>Sem entradas neste mês.</li>
+                            )}
+                          </ul>
+
+                          <p>Despesas do mês:</p>
+                          <ul>
+                            {(monthDetails?.obligations ?? []).length > 0 ? (
+                              (monthDetails?.obligations ?? []).map((obligationItem) => {
+                                const currentStatus = getOccurrenceStatus('obligation', obligationItem.id, month.key);
+                                const isPaid = currentStatus === 'paid';
+                                const occurrenceKey = `obligation-${obligationItem.id}-${month.key}`;
+
+                                return (
+                                  <li key={`${month.key}-obligation-${obligationItem.id}`}>
+                                    {obligationItem.title} — {currencyFormatter.format(Number(obligationItem.amount))} (
+                                    {obligationItem.type}
+                                    {obligationItem.type === 'parcelada' && obligationItem.total_installments
+                                      ? `, parcelada em ${obligationItem.total_installments}x`
+                                      : ''}
+                                    , bloco {obligationItem.block_type}) —{' '}
+                                    <span className={`status-pill ${isPaid ? 'status-success' : 'status-pending'}`}>
+                                      {isPaid ? 'Paga' : 'Pendente'}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      disabled={isPaid || isUpdatingOccurrenceKey === occurrenceKey}
+                                      onClick={() =>
+                                        handleSetOccurrenceStatus(
+                                          'obligation',
+                                          obligationItem.id,
+                                          month.key,
+                                          obligationItem.title,
+                                          Number(obligationItem.amount),
+                                          obligationItem.block_type,
+                                          'paid'
+                                        )
+                                      }
+                                    >
+                                      {isUpdatingOccurrenceKey === occurrenceKey
+                                        ? 'Salvando...'
+                                        : 'Marcar como paga'}
+                                    </button>
+                                  </li>
+                                );
+                              })
+                            ) : (
+                              <li>Sem despesas neste mês.</li>
+                            )}
+                          </ul>
+
+                          <p>Totais do mês:</p>
+                          <p>Entradas: {currencyFormatter.format(month.totalEntries)}</p>
+                          <p>Despesas: {currencyFormatter.format(month.totalObligations)}</p>
+                          <p>Saldo: {currencyFormatter.format(month.balance)}</p>
+                        </details>
+                      </article>
+                    );
+                  })}
+                </section>
+              ) : null}
+            </details>
           </section>
-        ) : null}
-        </details>
-        </section>
         ) : null}
 
         {activeSection === 'lancamentos' ? (

@@ -55,10 +55,6 @@ body {
 .app-header {
   display: grid;
   gap: var(--space-1);
-}
-
-
-.app-header {
   border: 1px solid #dbe5ff;
   background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
 }
@@ -97,8 +93,8 @@ body {
 
 .app-title {
   margin: 0;
-  font-size: 2rem;
-  line-height: 1.15;
+  font-size: 1.72rem;
+  line-height: 1.2;
   color: var(--text-primary);
 }
 
@@ -172,7 +168,7 @@ body {
 }
 
 .main-balance-value {
-  font-size: 2.1rem;
+  font-size: 1.95rem;
   line-height: 1.15;
   margin-left: 0.35rem;
   color: var(--color-accent);
@@ -203,7 +199,6 @@ body {
   font-weight: 700;
   color: var(--text-primary);
 }
-
 
 .launch-area {
   display: grid;
@@ -499,19 +494,19 @@ h4 {
 }
 
 h2 {
-  font-size: 1.35rem;
+  font-size: 1.22rem;
   margin-bottom: var(--space-3);
   font-weight: 700;
 }
 
 h3 {
-  font-size: 1.15rem;
+  font-size: 1.03rem;
   margin-bottom: var(--space-2);
   font-weight: 700;
 }
 
 h4 {
-  font-size: 1rem;
+  font-size: 0.95rem;
   margin-bottom: var(--space-2);
   font-weight: 600;
 }
@@ -525,7 +520,7 @@ td {
 }
 
 p {
-  line-height: 1.6;
+  line-height: 1.5;
   font-weight: 400;
 }
 
@@ -648,6 +643,8 @@ li {
   padding: 0.95rem;
   margin-bottom: var(--space-3);
   background: #fff;
+  display: grid;
+  gap: var(--space-2);
 }
 
 .month-summary-risk {
@@ -711,6 +708,116 @@ li {
   color: var(--text-primary);
 }
 
+.projection-section details {
+  background: #f8fafc;
+}
+
+.projection-view-toggle {
+  margin-top: 0.4rem;
+  margin-bottom: 0.2rem;
+}
+
+.projection-month-grid {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.projection-month-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #fff;
+  padding: var(--space-3);
+  display: grid;
+  gap: var(--space-2);
+}
+
+.projection-month-card-safe {
+  border-left: 4px solid #22c55e;
+}
+
+.projection-month-card-warning {
+  border-left: 4px solid #f59e0b;
+}
+
+.projection-month-card-risk {
+  border-left: 4px solid #ef4444;
+}
+
+.projection-month-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.projection-month-title {
+  margin: 0;
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.projection-month-metrics p,
+.projection-block-card p {
+  margin: 0.1rem 0;
+}
+
+.projection-blocks-grid {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.projection-block-card {
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 0.7rem;
+  background: #f8fafc;
+}
+
+.projection-month-alerts {
+  margin: 0;
+  font-size: 0.83rem;
+}
+
+.month-summary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.month-summary-header h4 {
+  margin: 0;
+}
+
+.month-summary-groups {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.month-summary-group {
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 0.7rem;
+  background: #f8fafc;
+}
+
+.month-summary-group h5 {
+  margin: 0 0 0.45rem;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #475569;
+}
+
+.month-summary-group p,
+.month-summary-group li {
+  margin: 0.16rem 0;
+}
+
+.month-summary-executive ul {
+  margin: 0;
+}
+
 tr.is-current-month td:first-child {
   border-left: 4px solid var(--color-accent);
 }
@@ -750,7 +857,28 @@ tr.is-safe-month {
   }
 
   .main-balance-value {
-    font-size: 1.9rem;
+    font-size: 1.8rem;
+  }
+
+  .app-title {
+    font-size: 1.55rem;
+  }
+
+  h2 {
+    font-size: 1.14rem;
+  }
+
+  .brand-subtitle {
+    font-size: 0.82rem;
+  }
+
+  .status-pill {
+    margin-left: 0.2rem;
+  }
+
+  .projection-month-header {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .brand-logo-placeholder {
@@ -773,6 +901,10 @@ tr.is-safe-month {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .month-summary-groups {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .bottom-nav {
     left: 50%;
     transform: translateX(-50%);
@@ -781,4 +913,4 @@ tr.is-safe-month {
     border-bottom: 0;
     border-radius: 1rem 1rem 0 0;
   }
-}
+  }
