@@ -488,3 +488,13 @@ tr.is-safe-month {
     border-radius: 1rem 1rem 0 0;
   }
 }
+
+@media (min-width: 901px) {
+  .section-nav {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .current-month-blocks-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
