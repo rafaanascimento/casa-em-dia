@@ -1857,8 +1857,11 @@ export default function HomePage() {
         <>
         <section className="card" id="entry-create-section">
         <h2>Cadastrar entrada</h2>
-        <form onSubmit={handleCreateEntry}>
-          <div>
+        <form className="modern-form" onSubmit={handleCreateEntry}>
+          <div className="form-block">
+            <p className="form-block-title">Informações principais</p>
+            <div className="form-grid">
+            <div>
             <label htmlFor="entryTitle">Título</label>
             <input
               id="entryTitle"
@@ -1870,7 +1873,7 @@ export default function HomePage() {
           </div>
 
           <div>
-            <label htmlFor="entryAmount">Valor</label>
+            <label htmlFor="entryAmount">Valor (R$)</label>
             <input
               id="entryAmount"
               type="number"
@@ -1881,8 +1884,13 @@ export default function HomePage() {
               required
             />
           </div>
+          </div>
+          </div>
 
-          <div>
+          <div className="form-block">
+            <p className="form-block-title">Recorrência e período</p>
+            <div className="form-grid">
+            <div>
             <label htmlFor="entryRecurrenceType">Recorrência</label>
             <select
               id="entryRecurrenceType"
@@ -1900,7 +1908,7 @@ export default function HomePage() {
           </div>
 
           <div>
-            <label htmlFor="entryStartDate">Data inicial</label>
+            <label htmlFor="entryStartDate">Início</label>
             <input
               id="entryStartDate"
               type="date"
@@ -1911,7 +1919,7 @@ export default function HomePage() {
           </div>
 
           <div>
-            <label htmlFor="entryEndDate">Data final (opcional)</label>
+            <label htmlFor="entryEndDate">Fim (opcional)</label>
             <input
               id="entryEndDate"
               type="date"
@@ -1919,7 +1927,12 @@ export default function HomePage() {
               onChange={(event) => setEntryForm({ ...entryForm, endDate: event.target.value })}
             />
           </div>
+          </div>
+          </div>
 
+          <div className="form-block">
+            <p className="form-block-title">Organização</p>
+            <div className="form-grid">
           <div>
             <label htmlFor="entryDueDay">Dia de vencimento</label>
             <input
@@ -1949,8 +1962,10 @@ export default function HomePage() {
               <option value="25">25</option>
             </select>
           </div>
+          </div>
+          </div>
 
-          <div>
+          <div className="form-inline-toggle">
             <label htmlFor="entryIsActive">Ativo</label>
             <input
               id="entryIsActive"
@@ -1969,7 +1984,10 @@ export default function HomePage() {
 
         <section className="card" id="obligation-create-section">
         <h2>Cadastrar despesa</h2>
-        <form onSubmit={handleCreateObligation}>
+        <form className="modern-form" onSubmit={handleCreateObligation}>
+          <div className="form-block">
+            <p className="form-block-title">Informações principais</p>
+            <div className="form-grid">
           <div>
             <label htmlFor="obligationTitle">Título</label>
             <input
@@ -1984,7 +2002,7 @@ export default function HomePage() {
           </div>
 
           <div>
-            <label htmlFor="obligationAmount">Valor</label>
+            <label htmlFor="obligationAmount">Valor (R$)</label>
             <input
               id="obligationAmount"
               type="number"
@@ -1997,7 +2015,12 @@ export default function HomePage() {
               required
             />
           </div>
+          </div>
+          </div>
 
+          <div className="form-block">
+            <p className="form-block-title">Tipo e recorrência</p>
+            <div className="form-grid">
           <div>
             <label htmlFor="obligationType">Tipo</label>
             <select
@@ -2049,9 +2072,14 @@ export default function HomePage() {
               <option value="one_time">Avulsa</option>
             </select>
           </div>
+          </div>
+          </div>
 
+          <div className="form-block">
+            <p className="form-block-title">Período e organização</p>
+            <div className="form-grid">
           <div>
-            <label htmlFor="obligationStartDate">Data inicial</label>
+            <label htmlFor="obligationStartDate">Início</label>
             <input
               id="obligationStartDate"
               type="date"
@@ -2064,7 +2092,7 @@ export default function HomePage() {
           </div>
 
           <div>
-            <label htmlFor="obligationEndDate">Data final (opcional)</label>
+            <label htmlFor="obligationEndDate">Fim (opcional)</label>
             <input
               id="obligationEndDate"
               type="date"
@@ -2102,8 +2130,10 @@ export default function HomePage() {
               <option value="25">25</option>
             </select>
           </div>
+          </div>
+          </div>
 
-          <div>
+          <div className="form-inline-toggle">
             <label htmlFor="obligationIsActive">Ativo</label>
             <input
               id="obligationIsActive"
