@@ -397,6 +397,7 @@ export default function HomePage() {
   const [hasFamilyMembership, setHasFamilyMembership] = useState(false);
   const [projectionViewMode, setProjectionViewMode] = useState<'monthly' | 'blocks'>('monthly');
   const [activeSection, setActiveSection] = useState<DashboardSection>('home');
+  const [launchTarget, setLaunchTarget] = useState<'entry' | 'obligation' | null>(null);
   const [entryForm, setEntryForm] = useState<EntryFormState>(initialEntryForm);
   const [obligationForm, setObligationForm] = useState<ObligationFormState>(initialObligationForm);
   const [entries, setEntries] = useState<EntryRow[]>([]);
@@ -463,6 +464,20 @@ export default function HomePage() {
 
     window.localStorage.setItem(EXPANDED_MONTH_KEYS_STORAGE_KEY, JSON.stringify(expandedMonthKeys));
   }, [expandedMonthKeys]);
+
+  useEffect(() => {
+    if (activeSection !== 'lancamentos' || !launchTarget) {
+      return;
+    }
+
+    const targetId = launchTarget === 'entry' ? 'entry-create-section' : 'obligation-create-section';
+    const targetElement = document.getElementById(targetId);
+
+    if (targetElement) {
+      targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setLaunchTarget(null);
+    }
+  }, [activeSection, launchTarget]);
 
   const loadFinancialData = async (currentFamilyId: string) => {
     setIsLoadingProjectionData(true);
@@ -1362,36 +1377,6 @@ export default function HomePage() {
         <h1 className="app-title">Casa em Dia</h1>
         <p>Você está autenticado e já possui vínculo com uma família.</p>
       </header>
-      <nav className="card section-nav" aria-label="Navegação principal">
-        <button
-          type="button"
-          className={activeSection === 'home' ? 'is-section-active' : ''}
-          onClick={() => setActiveSection('home')}
-        >
-          Home
-        </button>
-        <button
-          type="button"
-          className={activeSection === 'lancamentos' ? 'is-section-active' : ''}
-          onClick={() => setActiveSection('lancamentos')}
-        >
-          Lançamentos
-        </button>
-        <button
-          type="button"
-          className={activeSection === 'projecao' ? 'is-section-active' : ''}
-          onClick={() => setActiveSection('projecao')}
-        >
-          Projeção
-        </button>
-        <button
-          type="button"
-          className={activeSection === 'perfil' ? 'is-section-active' : ''}
-          onClick={() => setActiveSection('perfil')}
-        >
-          Perfil/Menu
-        </button>
-      </nav>
       {activeSection === 'home' && currentMonthPendingMessages.length > 0 ? (
         <section className="card pending-alerts">
           <h2 className="pending-alerts-title">Pendências do mês atual</h2>
@@ -1418,7 +1403,7 @@ export default function HomePage() {
               </p>
               <p>
                 Saldo do mês:{' '}
-                <span className={`money-value ${getBalanceTone(currentMonthProjection.balance)}`}>
+                <span className={`money-value main-balance-value ${getBalanceTone(currentMonthProjection.balance)}`}>
                   {currencyFormatter.format(currentMonthProjection.balance)}
                 </span>
               </p>
@@ -1475,15 +1460,19 @@ export default function HomePage() {
                 <div className="button-row">
                   <button
                     type="button"
-                    onClick={() => document.getElementById('entry-create-section')?.scrollIntoView({ behavior: 'smooth' })}
+                    onClick={() => {
+                      setActiveSection('lancamentos');
+                      setLaunchTarget('entry');
+                    }}
                   >
                     Adicionar entrada
                   </button>
                   <button
                     type="button"
-                    onClick={() =>
-                      document.getElementById('obligation-create-section')?.scrollIntoView({ behavior: 'smooth' })
-                    }
+                    onClick={() => {
+                      setActiveSection('lancamentos');
+                      setLaunchTarget('obligation');
+                    }}
                   >
                     Adicionar despesa
                   </button>
@@ -2257,39 +2246,26 @@ export default function HomePage() {
               </button>
             </form>
           ) : null}
-          <table>
-            <thead>
-              <tr>
-                <th>Título</th>
-                <th>Valor</th>
-                <th>Recorrência</th>
-                <th>Data inicial</th>
-                <th>Bloco</th>
-                <th>Ativo</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {entryList.map((entryItem, index) => (
-                <tr key={`${entryItem.title}-${entryItem.start_date}-${entryItem.amount}-${index}`}>
-                  <td>{entryItem.title}</td>
-                  <td>{currencyFormatter.format(Number(entryItem.amount))}</td>
-                  <td>{entryItem.recurrence_type}</td>
-                  <td>{entryItem.start_date}</td>
-                  <td>{entryItem.block_type}</td>
-                  <td>{entryItem.is_active ? 'Sim' : 'Não'}</td>
-                  <td>
-                    <button type="button" onClick={() => handleStartEditEntry(entryItem)}>
-                      Editar
-                    </button>
-                    <button type="button" onClick={() => handleDeleteEntry(entryItem.id)}>
-                      Excluir
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="mobile-list-grid">
+            {entryList.map((entryItem, index) => (
+              <article key={`${entryItem.title}-${entryItem.start_date}-${entryItem.amount}-${index}`} className="mobile-list-card">
+                <p className="mobile-list-title">{entryItem.title}</p>
+                <p className="mobile-list-value">{currencyFormatter.format(Number(entryItem.amount))}</p>
+                <p>Tipo: Entrada</p>
+                <p>Data: {entryItem.start_date}</p>
+                <p>Bloco financeiro: {entryItem.block_type}</p>
+                <p>Status: {entryItem.is_active ? 'Ativo' : 'Inativo'}</p>
+                <div className="button-row">
+                  <button type="button" onClick={() => handleStartEditEntry(entryItem)}>
+                    Editar
+                  </button>
+                  <button type="button" onClick={() => handleDeleteEntry(entryItem.id)}>
+                    Excluir
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
         </section>
 
         <section>
@@ -2467,45 +2443,27 @@ export default function HomePage() {
               </button>
             </form>
           ) : null}
-          <table>
-            <thead>
-              <tr>
-                <th>Título</th>
-                <th>Valor</th>
-                <th>Tipo</th>
-                <th>Recorrência</th>
-                <th>Parcelas</th>
-                <th>Data inicial</th>
-                <th>Bloco</th>
-                <th>Ativo</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {obligationList.map((obligationItem, index) => (
-                <tr
-                  key={`${obligationItem.title}-${obligationItem.start_date}-${obligationItem.amount}-${index}`}
-                >
-                  <td>{obligationItem.title}</td>
-                  <td>{currencyFormatter.format(Number(obligationItem.amount))}</td>
-                  <td>{obligationItem.type}</td>
-                  <td>{obligationItem.recurrence_type}</td>
-                  <td>{obligationItem.total_installments ?? '-'}</td>
-                  <td>{obligationItem.start_date}</td>
-                  <td>{obligationItem.block_type}</td>
-                  <td>{obligationItem.is_active ? 'Sim' : 'Não'}</td>
-                  <td>
-                    <button type="button" onClick={() => handleStartEditObligation(obligationItem)}>
-                      Editar
-                    </button>
-                    <button type="button" onClick={() => handleDeleteObligation(obligationItem.id)}>
-                      Excluir
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="mobile-list-grid">
+            {obligationList.map((obligationItem, index) => (
+              <article key={`${obligationItem.title}-${obligationItem.start_date}-${obligationItem.amount}-${index}`} className="mobile-list-card">
+                <p className="mobile-list-title">{obligationItem.title}</p>
+                <p className="mobile-list-value">{currencyFormatter.format(Number(obligationItem.amount))}</p>
+                <p>Tipo: Despesa ({obligationItem.type})</p>
+                <p>Data: {obligationItem.start_date}</p>
+                <p>Bloco financeiro: {obligationItem.block_type}</p>
+                <p>Status: {obligationItem.is_active ? 'Ativo' : 'Inativo'}</p>
+                {obligationItem.total_installments ? <p>Parcelas: {obligationItem.total_installments}</p> : null}
+                <div className="button-row">
+                  <button type="button" onClick={() => handleStartEditObligation(obligationItem)}>
+                    Editar
+                  </button>
+                  <button type="button" onClick={() => handleDeleteObligation(obligationItem.id)}>
+                    Excluir
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
         </section>
         </>
         ) : null}
@@ -2521,6 +2479,43 @@ export default function HomePage() {
           </section>
         ) : null}
       </div>
+
+      <div className="fab-placeholder" aria-hidden="true" />
+
+      <nav className="bottom-nav" aria-label="Navegação mobile">
+        <button
+          type="button"
+          className={activeSection === 'home' ? 'is-section-active' : ''}
+          onClick={() => setActiveSection('home')}
+        >
+          <span aria-hidden="true">🏠</span>
+          <span>Home</span>
+        </button>
+        <button
+          type="button"
+          className={activeSection === 'lancamentos' ? 'is-section-active' : ''}
+          onClick={() => setActiveSection('lancamentos')}
+        >
+          <span aria-hidden="true">🧾</span>
+          <span>Lançamentos</span>
+        </button>
+        <button
+          type="button"
+          className={activeSection === 'projecao' ? 'is-section-active' : ''}
+          onClick={() => setActiveSection('projecao')}
+        >
+          <span aria-hidden="true">📈</span>
+          <span>Projeção</span>
+        </button>
+        <button
+          type="button"
+          className={activeSection === 'perfil' ? 'is-section-active' : ''}
+          onClick={() => setActiveSection('perfil')}
+        >
+          <span aria-hidden="true">👤</span>
+          <span>Perfil</span>
+        </button>
+      </nav>
 
       {error ? <p>{error}</p> : null}
     </main>
