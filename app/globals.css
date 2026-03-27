@@ -55,10 +55,6 @@ body {
 .app-header {
   display: grid;
   gap: var(--space-1);
-}
-
-
-.app-header {
   border: 1px solid #dbe5ff;
   background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
 }
@@ -203,7 +199,6 @@ body {
   font-weight: 700;
   color: var(--text-primary);
 }
-
 
 .launch-area {
   display: grid;
@@ -648,6 +643,8 @@ li {
   padding: 0.95rem;
   margin-bottom: var(--space-3);
   background: #fff;
+  display: grid;
+  gap: var(--space-2);
 }
 
 .month-summary-risk {
@@ -710,7 +707,6 @@ li {
   font-weight: 700;
   color: var(--text-primary);
 }
-
 
 .projection-section details {
   background: #f8fafc;
@@ -780,11 +776,6 @@ li {
 .projection-month-alerts {
   margin: 0;
   font-size: 0.83rem;
-}
-
-.month-summary {
-  display: grid;
-  gap: var(--space-2);
 }
 
 .month-summary-header {
@@ -910,13 +901,10 @@ tr.is-safe-month {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-<<<<<<< codex/implementar-refinamento-da-fase-8-zpdlec
   .month-summary-groups {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-=======
->>>>>>> main
   .bottom-nav {
     left: 50%;
     transform: translateX(-50%);
@@ -925,4 +913,4 @@ tr.is-safe-month {
     border-bottom: 0;
     border-radius: 1rem 1rem 0 0;
   }
-}
+  }
