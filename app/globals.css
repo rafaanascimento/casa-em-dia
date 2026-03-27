@@ -910,10 +910,13 @@ tr.is-safe-month {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+<<<<<<< codex/implementar-refinamento-da-fase-8-zpdlec
   .month-summary-groups {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+=======
+>>>>>>> main
   .bottom-nav {
     left: 50%;
     transform: translateX(-50%);
