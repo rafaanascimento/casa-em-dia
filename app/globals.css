@@ -77,6 +77,12 @@ body {
   background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
 }
 
+
+.app-header {
+  border: 1px solid #dbe5ff;
+  background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
+}
+
 .brand-row {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -100,7 +106,7 @@ body {
   margin: 0;
   font-size: 0.84rem;
   font-weight: 500;
-  color: #6366f1;
+  color: #166534;
 }
 
 .brand-subtitle {
@@ -199,7 +205,7 @@ body {
 }
 
 .home-main-card {
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 
 .home-support-card {
@@ -255,14 +261,23 @@ body {
 
 .home-commitment-item,
 .home-block-list-item {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 0.55rem;
-  align-items: center;
   border: 1px solid #dce9df;
   border-radius: 10px;
-  padding: 0.5rem 0.58rem;
   background: #fff;
+}
+
+.home-commitment-item {
+  display: grid;
+  gap: 0.22rem;
+  padding: 0.42rem 0.55rem;
+}
+
+.home-commitment-row-main,
+.home-commitment-row-meta {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.45rem;
+  align-items: center;
 }
 
 .home-commitment-title {
@@ -272,11 +287,6 @@ body {
   font-weight: 600;
 }
 
-.home-commitment-meta {
-  margin: 0.1rem 0 0;
-  font-size: 0.74rem;
-}
-
 .home-commitment-value {
   margin: 0;
   font-size: 0.84rem;
@@ -284,6 +294,40 @@ body {
   color: #14532d;
 }
 
+.commitment-entry .home-commitment-value {
+  color: #15803d;
+}
+
+.commitment-obligation .home-commitment-value {
+  color: #b91c1c;
+}
+
+.home-commitment-meta {
+  margin: 0;
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.home-commitments-list li + li {
+  margin-top: 0.12rem;
+}
+
+.home-executive-details {
+  margin-top: 0;
+  padding: 0.55rem;
+  border-color: #dce9df;
+  background: #fbfefc;
+}
+
+.home-executive-details summary {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #14532d;
+}
+
+.home-support-card {
+  padding: 0.7rem;
+}
 .home-block-details {
   margin-top: 0.45rem;
   background: #fbfefc;
@@ -297,8 +341,10 @@ body {
 }
 
 .home-block-list-item {
+  display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
-  font-size: 0.8rem;
+  font-size: 0.76rem;
+  padding: 0.4rem 0.5rem;
 }
 
 .home-block-mini-summary {
@@ -1097,7 +1143,11 @@ tr.is-safe-month {
   .home-commitment-meta,
   .home-block-list-item,
   .home-month-total p {
-    font-size: 0.76rem;
+    font-size: 0.72rem;
+  }
+
+  .home-commitment-value {
+    font-size: 0.8rem;
   }
 
   .brand-logo-placeholder {

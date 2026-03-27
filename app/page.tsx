@@ -1583,14 +1583,22 @@ export default function HomePage() {
                 {currentMonthCommitments.length > 0 ? (
                   <ul className="home-commitments-list">
                     {currentMonthCommitments.map((item) => (
-                      <li key={`commitment-${item.kind}-${item.id}`} className="home-commitment-item">
-                        <div>
+                      <li
+                        key={`commitment-${item.kind}-${item.id}`}
+                        className={`home-commitment-item ${
+                          item.kind === 'Entrada' ? 'commitment-entry' : 'commitment-obligation'
+                        }`}
+                      >
+                        <div className="home-commitment-row-main">
                           <p className="home-commitment-title">{item.title}</p>
-                          <p className="home-commitment-meta">
-                            Vencimento: {item.dueDay ? String(item.dueDay).padStart(2, '0') : '--'} • {item.kind}
-                          </p>
+                          <p className="home-commitment-value">{currencyFormatter.format(item.amount)}</p>
                         </div>
-                        <p className="home-commitment-value">{currencyFormatter.format(item.amount)}</p>
+                        <div className="home-commitment-row-meta">
+                          <p className="home-commitment-meta">
+                            Vencimento: {item.dueDay ? String(item.dueDay).padStart(2, '0') : '--'}
+                          </p>
+                          <p className="home-commitment-meta">{item.kind}</p>
+                        </div>
                       </li>
                     ))}
                   </ul>
@@ -1676,30 +1684,31 @@ export default function HomePage() {
           )}
         </section>
         <section className="card executive-card home-support-card">
-          <h2 className="home-section-title">Resumo executivo</h2>
-          <p>
-            Situação do mês:{' '}
-            <span className={`status-pill ${getRiskTone(currentMonthRisk.level)}`}>
-              {getRiskBadgeLabel(currentMonthRisk.level)}
-            </span>
-          </p>
-          <ul>
-            {currentMonthRisk.messages.map((message) => (
-              <li key={`current-risk-${message}`}>{message}</li>
-            ))}
-          </ul>
-          <p>
-            Saldo planejado:{' '}
-            <span className={`money-value ${getBalanceTone(currentMonthPlannedVsActual?.plannedBalance ?? 0)}`}>
-              {currencyFormatter.format(currentMonthPlannedVsActual?.plannedBalance ?? 0)}
-            </span>
-          </p>
-          <p>
-            Saldo parcial realizado:{' '}
-            <span className={`money-value ${getBalanceTone(currentMonthPlannedVsActual?.partialActualBalance ?? 0)}`}>
-              {currencyFormatter.format(currentMonthPlannedVsActual?.partialActualBalance ?? 0)}
-            </span>
-          </p>
+          <details className="home-executive-details">
+            <summary>
+              Resumo executivo{' '}
+              <span className={`status-pill ${getRiskTone(currentMonthRisk.level)}`}>
+                {getRiskBadgeLabel(currentMonthRisk.level)}
+              </span>
+            </summary>
+            <ul>
+              {currentMonthRisk.messages.map((message) => (
+                <li key={`current-risk-${message}`}>{message}</li>
+              ))}
+            </ul>
+            <p>
+              Saldo planejado:{' '}
+              <span className={`money-value ${getBalanceTone(currentMonthPlannedVsActual?.plannedBalance ?? 0)}`}>
+                {currencyFormatter.format(currentMonthPlannedVsActual?.plannedBalance ?? 0)}
+              </span>
+            </p>
+            <p>
+              Saldo parcial realizado:{' '}
+              <span className={`money-value ${getBalanceTone(currentMonthPlannedVsActual?.partialActualBalance ?? 0)}`}>
+                {currencyFormatter.format(currentMonthPlannedVsActual?.partialActualBalance ?? 0)}
+              </span>
+            </p>
+          </details>
         </section>
         </>
         ) : null}
