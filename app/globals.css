@@ -55,6 +55,20 @@ body {
 .app-header {
   display: grid;
   gap: var(--space-1);
+  border: 1px solid #dbe5ff;
+  background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
+}
+
+
+.app-header {
+  border: 1px solid #dbe5ff;
+  background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
+}
+
+
+.app-header {
+  border: 1px solid #dbe5ff;
+  background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
 }
 
 
@@ -797,6 +811,8 @@ li {
   padding: 0.95rem;
   margin-bottom: var(--space-3);
   background: #fff;
+  display: grid;
+  gap: var(--space-2);
 }
 
 .month-summary-risk {
