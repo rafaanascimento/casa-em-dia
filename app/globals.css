@@ -57,6 +57,7 @@ body {
   gap: var(--space-1);
 }
 
+<<<<<<< codex/implementar-notificacoes-mensais-de-pendencias-9zuau4
 .brand-row {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -86,6 +87,15 @@ body {
 .brand-subtitle {
   margin: 0.15rem 0 0;
   font-size: 0.88rem;
+=======
+.app-brand-kicker {
+  margin: 0;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-accent);
+  font-weight: 700;
+>>>>>>> main
 }
 
 .app-title {
@@ -93,6 +103,14 @@ body {
   font-size: 2rem;
   line-height: 1.15;
   color: var(--text-primary);
+<<<<<<< codex/implementar-notificacoes-mensais-de-pendencias-9zuau4
+=======
+}
+
+.app-brand-subtitle {
+  margin: 0;
+  font-size: 0.95rem;
+>>>>>>> main
 }
 
 .content-grid {
@@ -115,6 +133,7 @@ body {
 
 .pending-alerts {
   border-left: 5px solid var(--color-danger);
+<<<<<<< codex/implementar-notificacoes-mensais-de-pendencias-9zuau4
   background: #fff;
 }
 
@@ -180,6 +199,115 @@ body {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: #fff;
+=======
+  background: #fff;
+}
+
+.pending-alerts-title {
+  margin: 0 0 var(--space-2);
+  font-size: 1.05rem;
+  color: var(--pill-danger-text);
+}
+
+.pending-alerts-list {
+  margin: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.dashboard-month-label {
+  margin: 0;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.home-highlight-card {
+  border: 0;
+}
+
+.dashboard-hero {
+  display: grid;
+  gap: var(--space-3);
+  background: linear-gradient(148deg, #eef2ff 0%, #faf5ff 100%);
+  border: 1px solid #dbeafe;
+  border-radius: var(--radius-lg);
+  padding: 1rem;
+}
+
+.dashboard-hero-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.dashboard-balance-label {
+  margin: 0;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.current-month-blocks {
+  margin-top: var(--space-4);
+}
+
+.current-month-blocks-grid {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: 1fr;
+}
+
+.month-block-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  background: #f8fafc;
+}
+
+.month-block-card p {
+  margin: 0.25rem 0;
+}
+
+.main-balance-value {
+  margin: 0;
+  font-size: 2.4rem;
+  line-height: 1.15;
+  color: var(--color-accent);
+}
+
+.hero-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.hero-metric-card {
+  display: grid;
+  gap: 0.25rem;
+  border-radius: 12px;
+  padding: 0.7rem;
+  border: 1px solid rgba(79, 70, 229, 0.18);
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.hero-metric-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+.mobile-list-grid {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.mobile-list-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #fff;
+>>>>>>> main
   padding: var(--space-3);
   box-shadow: 0 6px 14px rgba(15, 23, 42, 0.05);
 }
@@ -214,6 +342,7 @@ body {
 
 .fab-actions {
   display: grid;
+<<<<<<< codex/implementar-notificacoes-mensais-de-pendencias-9zuau4
   gap: 0.45rem;
 }
 
@@ -221,6 +350,18 @@ body {
   border-radius: 999px;
   padding: 0.5rem 0.9rem;
   font-size: 0.82rem;
+=======
+  gap: 0.55rem;
+}
+
+.fab-action-item {
+  border-radius: 14px;
+  padding: 0.58rem 0.9rem;
+  font-size: 0.82rem;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+>>>>>>> main
   box-shadow: 0 8px 20px rgba(79, 70, 229, 0.22);
 }
 
@@ -319,6 +460,25 @@ p {
   flex-wrap: wrap;
   gap: var(--space-2);
   margin-bottom: var(--space-3);
+<<<<<<< codex/implementar-notificacoes-mensais-de-pendencias-9zuau4
+=======
+}
+
+.quick-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.quick-action-card {
+  border-radius: 14px;
+  padding: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 3.2rem;
+>>>>>>> main
 }
 
 button {
@@ -340,7 +500,11 @@ button:hover:not(:disabled) {
 }
 
 button:active:not(:disabled) {
+<<<<<<< codex/implementar-notificacoes-mensais-de-pendencias-9zuau4
   transform: translateY(0);
+=======
+  transform: scale(0.98);
+>>>>>>> main
   filter: brightness(0.98);
 }
 
@@ -352,11 +516,49 @@ button:disabled {
 form {
   display: grid;
   gap: var(--space-3);
+<<<<<<< codex/implementar-notificacoes-mensais-de-pendencias-9zuau4
+=======
+}
+
+.modern-form {
+  gap: var(--space-4);
+}
+
+.form-block {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0.85rem;
+  background: #f8fafc;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.form-block-title {
+  margin: 0;
+  font-size: 0.76rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.form-grid {
+  display: grid;
+  gap: 0.75rem;
+>>>>>>> main
 }
 
 form > div {
   display: grid;
   gap: var(--space-1);
+<<<<<<< codex/implementar-notificacoes-mensais-de-pendencias-9zuau4
+=======
+}
+
+label {
+  font-size: 0.8rem;
+  font-weight: 600;
+>>>>>>> main
 }
 
 input,
@@ -364,9 +566,39 @@ select {
   width: 100%;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
+<<<<<<< codex/implementar-notificacoes-mensais-de-pendencias-9zuau4
   padding: 0.6rem 0.65rem;
+=======
+  padding: 0.72rem;
   background: #fff;
   color: var(--text-primary);
+  box-shadow: inset 0 1px 1px rgba(15, 23, 42, 0.05);
+}
+
+input[type='checkbox'] {
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.form-inline-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0.8rem;
+>>>>>>> main
+  background: #fff;
+  color: var(--text-primary);
+}
+
+input:focus,
+select:focus {
+  outline: 2px solid rgba(79, 70, 229, 0.22);
+  border-color: var(--color-accent);
 }
 
 input:focus,
@@ -535,6 +767,7 @@ tr.is-safe-month {
   }
 
   .main-balance-value {
+<<<<<<< codex/implementar-notificacoes-mensais-de-pendencias-9zuau4
     font-size: 1.9rem;
   }
 
@@ -542,6 +775,13 @@ tr.is-safe-month {
     width: 2.3rem;
     height: 2.3rem;
     font-size: 1.2rem;
+=======
+    font-size: 2.1rem;
+  }
+
+  .quick-actions-grid {
+    grid-template-columns: 1fr;
+>>>>>>> main
   }
 }
 
@@ -554,6 +794,13 @@ tr.is-safe-month {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+<<<<<<< codex/implementar-notificacoes-mensais-de-pendencias-9zuau4
+=======
+  .form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+>>>>>>> main
   .bottom-nav {
     left: 50%;
     transform: translateX(-50%);
