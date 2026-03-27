@@ -57,11 +57,25 @@ body {
   gap: var(--space-1);
 }
 
+.app-brand-kicker {
+  margin: 0;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-accent);
+  font-weight: 700;
+}
+
 .app-title {
   margin: 0;
   font-size: 2rem;
   line-height: 1.15;
   color: var(--text-primary);
+}
+
+.app-brand-subtitle {
+  margin: 0;
+  font-size: 0.95rem;
 }
 
 .content-grid {
@@ -100,9 +114,36 @@ body {
 }
 
 .dashboard-month-label {
-  margin-bottom: var(--space-2);
+  margin: 0;
   font-weight: 600;
   color: var(--text-primary);
+}
+
+.home-highlight-card {
+  border: 0;
+}
+
+.dashboard-hero {
+  display: grid;
+  gap: var(--space-3);
+  background: linear-gradient(148deg, #eef2ff 0%, #faf5ff 100%);
+  border: 1px solid #dbeafe;
+  border-radius: var(--radius-lg);
+  padding: 1rem;
+}
+
+.dashboard-hero-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.dashboard-balance-label {
+  margin: 0;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .current-month-blocks {
@@ -127,10 +168,32 @@ body {
 }
 
 .main-balance-value {
-  font-size: 2.1rem;
+  margin: 0;
+  font-size: 2.4rem;
   line-height: 1.15;
-  margin-left: 0.35rem;
   color: var(--color-accent);
+}
+
+.hero-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.hero-metric-card {
+  display: grid;
+  gap: 0.25rem;
+  border-radius: 12px;
+  padding: 0.7rem;
+  border: 1px solid rgba(79, 70, 229, 0.18);
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.hero-metric-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
 }
 
 .mobile-list-grid {
@@ -176,13 +239,16 @@ body {
 
 .fab-actions {
   display: grid;
-  gap: 0.45rem;
+  gap: 0.55rem;
 }
 
-.fab-actions button {
-  border-radius: 999px;
-  padding: 0.5rem 0.9rem;
+.fab-action-item {
+  border-radius: 14px;
+  padding: 0.58rem 0.9rem;
   font-size: 0.82rem;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
   box-shadow: 0 8px 20px rgba(79, 70, 229, 0.22);
 }
 
@@ -283,6 +349,22 @@ p {
   margin-bottom: var(--space-3);
 }
 
+.quick-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.quick-action-card {
+  border-radius: 14px;
+  padding: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 3.2rem;
+}
+
 button {
   border: 1px solid transparent;
   border-radius: var(--radius-md);
@@ -302,7 +384,7 @@ button:hover:not(:disabled) {
 }
 
 button:active:not(:disabled) {
-  transform: translateY(0);
+  transform: scale(0.98);
   filter: brightness(0.98);
 }
 
@@ -316,9 +398,41 @@ form {
   gap: var(--space-3);
 }
 
+.modern-form {
+  gap: var(--space-4);
+}
+
+.form-block {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0.85rem;
+  background: #f8fafc;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.form-block-title {
+  margin: 0;
+  font-size: 0.76rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.form-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
 form > div {
   display: grid;
   gap: var(--space-1);
+}
+
+label {
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
 input,
@@ -326,9 +440,28 @@ select {
   width: 100%;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  padding: 0.6rem 0.65rem;
+  padding: 0.72rem;
   background: #fff;
   color: var(--text-primary);
+  box-shadow: inset 0 1px 1px rgba(15, 23, 42, 0.05);
+}
+
+input[type='checkbox'] {
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.form-inline-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0.8rem;
+  background: #fff;
 }
 
 input:focus,
@@ -497,7 +630,11 @@ tr.is-safe-month {
   }
 
   .main-balance-value {
-    font-size: 1.9rem;
+    font-size: 2.1rem;
+  }
+
+  .quick-actions-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -507,6 +644,10 @@ tr.is-safe-month {
   }
 
   .mobile-list-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
