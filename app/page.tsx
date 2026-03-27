@@ -480,14 +480,6 @@ export default function HomePage() {
     }
   }, [activeSection, launchTarget]);
 
-  useEffect(() => {
-    if (!isFabOpen) {
-      return;
-    }
-
-    setIsFabOpen(false);
-  }, [activeSection, isFabOpen]);
-
   const loadFinancialData = async (currentFamilyId: string) => {
     setIsLoadingProjectionData(true);
 
@@ -2528,14 +2520,23 @@ export default function HomePage() {
       </div>
 
       <div className="bottom-safe-spacer" aria-hidden="true" />
-      <div className="fab-wrapper">
+      {isFabOpen ? (
+        <button
+          type="button"
+          className="fab-overlay"
+          aria-label="Fechar ações rápidas"
+          onClick={() => setIsFabOpen(false)}
+        />
+      ) : null}
+      <div className="fab-wrapper" onClick={(event) => event.stopPropagation()}>
         {isFabOpen ? (
-          <div className="fab-actions">
+          <div className="fab-actions" onClick={(event) => event.stopPropagation()}>
             <button
               type="button"
               onClick={() => {
                 setActiveSection('lancamentos');
                 setLaunchTarget('entry');
+                setIsFabOpen(false);
               }}
             >
               Nova entrada
@@ -2545,6 +2546,7 @@ export default function HomePage() {
               onClick={() => {
                 setActiveSection('lancamentos');
                 setLaunchTarget('obligation');
+                setIsFabOpen(false);
               }}
             >
               Nova despesa
@@ -2556,7 +2558,10 @@ export default function HomePage() {
           className="fab-button"
           aria-expanded={isFabOpen}
           aria-label="Abrir ações rápidas"
-          onClick={() => setIsFabOpen((previous) => !previous)}
+          onClick={(event) => {
+            event.stopPropagation();
+            setIsFabOpen((previous) => !previous);
+          }}
         >
           +
         </button>
