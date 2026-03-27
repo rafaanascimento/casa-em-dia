@@ -398,6 +398,7 @@ export default function HomePage() {
   const [projectionViewMode, setProjectionViewMode] = useState<'monthly' | 'blocks'>('monthly');
   const [activeSection, setActiveSection] = useState<DashboardSection>('home');
   const [launchTarget, setLaunchTarget] = useState<'entry' | 'obligation' | null>(null);
+  const [isFabOpen, setIsFabOpen] = useState(false);
   const [entryForm, setEntryForm] = useState<EntryFormState>(initialEntryForm);
   const [obligationForm, setObligationForm] = useState<ObligationFormState>(initialObligationForm);
   const [entries, setEntries] = useState<EntryRow[]>([]);
@@ -478,6 +479,14 @@ export default function HomePage() {
       setLaunchTarget(null);
     }
   }, [activeSection, launchTarget]);
+
+  useEffect(() => {
+    if (!isFabOpen) {
+      return;
+    }
+
+    setIsFabOpen(false);
+  }, [activeSection, isFabOpen]);
 
   const loadFinancialData = async (currentFamilyId: string) => {
     setIsLoadingProjectionData(true);
@@ -2481,7 +2490,39 @@ export default function HomePage() {
       </div>
 
       <div className="bottom-safe-spacer" aria-hidden="true" />
-      <div className="fab-placeholder" aria-hidden="true" />
+      <div className="fab-wrapper">
+        {isFabOpen ? (
+          <div className="fab-actions">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveSection('lancamentos');
+                setLaunchTarget('entry');
+              }}
+            >
+              + Entrada
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveSection('lancamentos');
+                setLaunchTarget('obligation');
+              }}
+            >
+              + Despesa
+            </button>
+          </div>
+        ) : null}
+        <button
+          type="button"
+          className="fab-button"
+          aria-expanded={isFabOpen}
+          aria-label="Abrir ações rápidas"
+          onClick={() => setIsFabOpen((previous) => !previous)}
+        >
+          +
+        </button>
+      </div>
 
       <nav className="bottom-nav" aria-label="Navegação mobile">
         <button
