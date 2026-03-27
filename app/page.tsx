@@ -121,6 +121,7 @@ type MonthRiskAnalysis = {
 };
 
 type DashboardSection = 'home' | 'lancamentos' | 'projecao' | 'perfil';
+type LaunchesView = 'entries' | 'obligations' | 'history';
 
 const PROJECTION_MONTHS = 6;
 const MONTH_KEY_REGEX = /^(\d{4})-(\d{1,2})$/;
@@ -341,7 +342,7 @@ const getRiskBadgeLabel = (riskLevel: MonthRiskAnalysis['level']) => {
     return 'Atenção';
   }
 
-  return 'OK';
+  return 'Ok';
 };
 
 const normalizeSourceType = (sourceType: string) => {
@@ -382,6 +383,13 @@ const normalizeMonthKey = (monthKey: string) => {
   return `${year}-${month.padStart(2, '0')}`;
 };
 
+const sectionSubtitleBySection: Record<DashboardSection, string> = {
+  home: 'Resumo do mês com visão rápida da família.',
+  lancamentos: 'Cadastre e ajuste entradas e despesas com clareza.',
+  projecao: 'Acompanhe cenários futuros para planejar com segurança.',
+  perfil: 'Gerencie sua conta e preferências do app.'
+};
+
 export default function HomePage() {
   const router = useRouter();
 
@@ -398,6 +406,7 @@ export default function HomePage() {
   const [projectionViewMode, setProjectionViewMode] = useState<'monthly' | 'blocks'>('monthly');
   const [activeSection, setActiveSection] = useState<DashboardSection>('home');
   const [launchTarget, setLaunchTarget] = useState<'entry' | 'obligation' | null>(null);
+  const [launchesView, setLaunchesView] = useState<LaunchesView>('entries');
   const [isFabOpen, setIsFabOpen] = useState(false);
   const [entryForm, setEntryForm] = useState<EntryFormState>(initialEntryForm);
   const [obligationForm, setObligationForm] = useState<ObligationFormState>(initialObligationForm);
@@ -472,12 +481,19 @@ export default function HomePage() {
     }
 
     const targetId = launchTarget === 'entry' ? 'entry-create-section' : 'obligation-create-section';
-    const targetElement = document.getElementById(targetId);
+    setLaunchesView(launchTarget === 'entry' ? 'entries' : 'obligations');
 
-    if (targetElement) {
-      targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const frameId = window.requestAnimationFrame(() => {
+      const targetElement = document.getElementById(targetId);
+
+      if (targetElement) {
+        targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+
       setLaunchTarget(null);
-    }
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
   }, [activeSection, launchTarget]);
 
   const loadFinancialData = async (currentFamilyId: string) => {
@@ -655,6 +671,43 @@ export default function HomePage() {
       };
     });
   }, [entries, obligations]);
+
+
+  const launchHistoryItems = useMemo(
+    () =>
+      [
+        ...entryList.map((item) => ({
+          id: item.id,
+          title: item.title,
+          amount: Number(item.amount),
+          date: item.start_date,
+          typeLabel: 'Entrada',
+          blockType: item.block_type,
+          isActive: item.is_active,
+          detailLabel: item.recurrence_type === 'monthly' ? 'Mensal' : 'Avulsa',
+          source: 'entry' as const,
+          originalItem: item
+        })),
+        ...obligationList.map((item) => ({
+          id: item.id,
+          title: item.title,
+          amount: Number(item.amount),
+          date: item.start_date,
+          typeLabel: 'Despesa',
+          blockType: item.block_type,
+          isActive: item.is_active,
+          detailLabel:
+            item.type === 'parcelada' && item.total_installments
+              ? `Parcelada (${item.total_installments}x)`
+              : item.type === 'fixa'
+                ? 'Fixa'
+                : 'Única',
+          source: 'obligation' as const,
+          originalItem: item
+        }))
+      ].sort((firstItem, secondItem) => secondItem.date.localeCompare(firstItem.date)),
+    [entryList, obligationList]
+  );
 
   const nextMonthAlertsByKey = useMemo(() => {
     const alertsMap = new Map<string, string[]>();
@@ -1399,7 +1452,7 @@ export default function HomePage() {
               {userEmail ? `, ${userEmail.split('@')[0]}` : ''}.
             </p>
             <h1 className="app-title">Casa em Dia</h1>
-            <p className="brand-subtitle">Seu painel financeiro familiar</p>
+            <p className="brand-subtitle">{sectionSubtitleBySection[activeSection]}</p>
           </div>
         </div>
       </header>
@@ -1854,667 +1907,748 @@ export default function HomePage() {
         ) : null}
 
         {activeSection === 'lancamentos' ? (
-        <>
-        <section className="card" id="entry-create-section">
-        <h2>Cadastrar entrada</h2>
-        <form className="modern-form" onSubmit={handleCreateEntry}>
-          <div className="form-block">
-            <p className="form-block-title">Informações principais</p>
-            <div className="form-grid">
-            <div>
-            <label htmlFor="entryTitle">Título</label>
-            <input
-              id="entryTitle"
-              type="text"
-              value={entryForm.title}
-              onChange={(event) => setEntryForm({ ...entryForm, title: event.target.value })}
-              required
-            />
-          </div>
+          <section className="card launch-area">
+            <h2>Lançamentos</h2>
+            <p className="launch-subtitle">Gerencie entradas e despesas sem perder o contexto do que já foi cadastrado.</p>
 
-          <div>
-            <label htmlFor="entryAmount">Valor (R$)</label>
-            <input
-              id="entryAmount"
-              type="number"
-              step="0.01"
-              min="0.01"
-              value={entryForm.amount}
-              onChange={(event) => setEntryForm({ ...entryForm, amount: event.target.value })}
-              required
-            />
-          </div>
-          </div>
-          </div>
-
-          <div className="form-block">
-            <p className="form-block-title">Recorrência e período</p>
-            <div className="form-grid">
-            <div>
-            <label htmlFor="entryRecurrenceType">Recorrência</label>
-            <select
-              id="entryRecurrenceType"
-              value={entryForm.recurrenceType}
-              onChange={(event) =>
-                setEntryForm({
-                  ...entryForm,
-                  recurrenceType: event.target.value as EntryFormState['recurrenceType']
-                })
-              }
-            >
-              <option value="monthly">Mensal</option>
-              <option value="one_time">Avulsa</option>
-            </select>
-          </div>
-
-          <div>
-            <label htmlFor="entryStartDate">Início</label>
-            <input
-              id="entryStartDate"
-              type="date"
-              value={entryForm.startDate}
-              onChange={(event) => setEntryForm({ ...entryForm, startDate: event.target.value })}
-              required
-            />
-          </div>
-
-          <div>
-            <label htmlFor="entryEndDate">Fim (opcional)</label>
-            <input
-              id="entryEndDate"
-              type="date"
-              value={entryForm.endDate}
-              onChange={(event) => setEntryForm({ ...entryForm, endDate: event.target.value })}
-            />
-          </div>
-          </div>
-          </div>
-
-          <div className="form-block">
-            <p className="form-block-title">Organização</p>
-            <div className="form-grid">
-          <div>
-            <label htmlFor="entryDueDay">Dia de vencimento</label>
-            <input
-              id="entryDueDay"
-              type="number"
-              min="1"
-              max="31"
-              value={entryForm.dueDay}
-              onChange={(event) => setEntryForm({ ...entryForm, dueDay: event.target.value })}
-              required
-            />
-          </div>
-
-          <div>
-            <label htmlFor="entryBlockType">Bloco financeiro</label>
-            <select
-              id="entryBlockType"
-              value={entryForm.blockType}
-              onChange={(event) =>
-                setEntryForm({
-                  ...entryForm,
-                  blockType: event.target.value as EntryFormState['blockType']
-                })
-              }
-            >
-              <option value="10">10</option>
-              <option value="25">25</option>
-            </select>
-          </div>
-          </div>
-          </div>
-
-          <div className="form-inline-toggle">
-            <label htmlFor="entryIsActive">Ativo</label>
-            <input
-              id="entryIsActive"
-              type="checkbox"
-              checked={entryForm.isActive}
-              onChange={(event) => setEntryForm({ ...entryForm, isActive: event.target.checked })}
-            />
-          </div>
-
-          <button type="submit" disabled={isSavingEntry}>
-            {isSavingEntry ? 'Salvando entrada...' : 'Salvar entrada'}
-          </button>
-        </form>
-        {entrySuccessMessage ? <p>{entrySuccessMessage}</p> : null}
-        </section>
-
-        <section className="card" id="obligation-create-section">
-        <h2>Cadastrar despesa</h2>
-        <form className="modern-form" onSubmit={handleCreateObligation}>
-          <div className="form-block">
-            <p className="form-block-title">Informações principais</p>
-            <div className="form-grid">
-          <div>
-            <label htmlFor="obligationTitle">Título</label>
-            <input
-              id="obligationTitle"
-              type="text"
-              value={obligationForm.title}
-              onChange={(event) =>
-                setObligationForm({ ...obligationForm, title: event.target.value })
-              }
-              required
-            />
-          </div>
-
-          <div>
-            <label htmlFor="obligationAmount">Valor (R$)</label>
-            <input
-              id="obligationAmount"
-              type="number"
-              step="0.01"
-              min="0.01"
-              value={obligationForm.amount}
-              onChange={(event) =>
-                setObligationForm({ ...obligationForm, amount: event.target.value })
-              }
-              required
-            />
-          </div>
-          </div>
-          </div>
-
-          <div className="form-block">
-            <p className="form-block-title">Tipo e recorrência</p>
-            <div className="form-grid">
-          <div>
-            <label htmlFor="obligationType">Tipo</label>
-            <select
-              id="obligationType"
-              value={obligationForm.type}
-              onChange={(event) =>
-                setObligationForm({
-                  ...obligationForm,
-                  type: event.target.value as ObligationFormState['type'],
-                  totalInstallments: event.target.value === 'parcelada' ? obligationForm.totalInstallments : ''
-                })
-              }
-            >
-              <option value="fixa">Fixa</option>
-              <option value="unica">Única</option>
-              <option value="parcelada">Parcelada</option>
-            </select>
-          </div>
-
-          {obligationForm.type === 'parcelada' ? (
-            <div>
-              <label htmlFor="obligationInstallments">Total de parcelas</label>
-              <input
-                id="obligationInstallments"
-                type="number"
-                min="1"
-                value={obligationForm.totalInstallments}
-                onChange={(event) =>
-                  setObligationForm({ ...obligationForm, totalInstallments: event.target.value })
-                }
-                required
-              />
+            <div className="launch-segmented-control" role="tablist" aria-label="Navegação de lançamentos">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={launchesView === 'entries'}
+                className={launchesView === 'entries' ? 'is-active' : ''}
+                onClick={() => setLaunchesView('entries')}
+              >
+                Entradas
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={launchesView === 'obligations'}
+                className={launchesView === 'obligations' ? 'is-active' : ''}
+                onClick={() => setLaunchesView('obligations')}
+              >
+                Despesas
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={launchesView === 'history'}
+                className={launchesView === 'history' ? 'is-active' : ''}
+                onClick={() => setLaunchesView('history')}
+              >
+                Histórico
+              </button>
             </div>
-          ) : null}
 
-          <div>
-            <label htmlFor="obligationRecurrenceType">Recorrência</label>
-            <select
-              id="obligationRecurrenceType"
-              value={obligationForm.recurrenceType}
-              onChange={(event) =>
-                setObligationForm({
-                  ...obligationForm,
-                  recurrenceType: event.target.value as ObligationFormState['recurrenceType']
-                })
-              }
-            >
-              <option value="monthly">Mensal</option>
-              <option value="one_time">Avulsa</option>
-            </select>
-          </div>
-          </div>
-          </div>
+            {entrySuccessMessage ? <p className="launch-feedback launch-feedback-success">{entrySuccessMessage}</p> : null}
+            {obligationSuccessMessage ? (
+              <p className="launch-feedback launch-feedback-success">{obligationSuccessMessage}</p>
+            ) : null}
 
-          <div className="form-block">
-            <p className="form-block-title">Período e organização</p>
-            <div className="form-grid">
-          <div>
-            <label htmlFor="obligationStartDate">Início</label>
-            <input
-              id="obligationStartDate"
-              type="date"
-              value={obligationForm.startDate}
-              onChange={(event) =>
-                setObligationForm({ ...obligationForm, startDate: event.target.value })
-              }
-              required
-            />
-          </div>
+            {launchesView === 'entries' ? (
+              <section className="launch-panel" id="entry-create-section">
+                <h3>Nova entrada</h3>
+                <form className="modern-form" onSubmit={handleCreateEntry}>
+                  <div className="form-block">
+                    <p className="form-block-title">Informações principais</p>
+                    <div className="form-grid">
+                      <div>
+                        <label htmlFor="entryTitle">Título</label>
+                        <input
+                          id="entryTitle"
+                          type="text"
+                          value={entryForm.title}
+                          onChange={(event) => setEntryForm({ ...entryForm, title: event.target.value })}
+                          required
+                        />
+                      </div>
 
-          <div>
-            <label htmlFor="obligationEndDate">Fim (opcional)</label>
-            <input
-              id="obligationEndDate"
-              type="date"
-              value={obligationForm.endDate}
-              onChange={(event) => setObligationForm({ ...obligationForm, endDate: event.target.value })}
-            />
-          </div>
+                      <div>
+                        <label htmlFor="entryAmount">Valor (R$)</label>
+                        <input
+                          id="entryAmount"
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          value={entryForm.amount}
+                          onChange={(event) => setEntryForm({ ...entryForm, amount: event.target.value })}
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
 
-          <div>
-            <label htmlFor="obligationDueDay">Dia de vencimento</label>
-            <input
-              id="obligationDueDay"
-              type="number"
-              min="1"
-              max="31"
-              value={obligationForm.dueDay}
-              onChange={(event) => setObligationForm({ ...obligationForm, dueDay: event.target.value })}
-              required
-            />
-          </div>
+                  <div className="form-block">
+                    <p className="form-block-title">Recorrência e período</p>
+                    <div className="form-grid">
+                      <div>
+                        <label htmlFor="entryRecurrenceType">Recorrência</label>
+                        <select
+                          id="entryRecurrenceType"
+                          value={entryForm.recurrenceType}
+                          onChange={(event) =>
+                            setEntryForm({
+                              ...entryForm,
+                              recurrenceType: event.target.value as EntryFormState['recurrenceType']
+                            })
+                          }
+                        >
+                          <option value="monthly">Mensal</option>
+                          <option value="one_time">Avulsa</option>
+                        </select>
+                      </div>
 
-          <div>
-            <label htmlFor="obligationBlockType">Bloco financeiro</label>
-            <select
-              id="obligationBlockType"
-              value={obligationForm.blockType}
-              onChange={(event) =>
-                setObligationForm({
-                  ...obligationForm,
-                  blockType: event.target.value as ObligationFormState['blockType']
-                })
-              }
-            >
-              <option value="10">10</option>
-              <option value="25">25</option>
-            </select>
-          </div>
-          </div>
-          </div>
+                      <div>
+                        <label htmlFor="entryStartDate">Início</label>
+                        <input
+                          id="entryStartDate"
+                          type="date"
+                          value={entryForm.startDate}
+                          onChange={(event) => setEntryForm({ ...entryForm, startDate: event.target.value })}
+                          required
+                        />
+                      </div>
 
-          <div className="form-inline-toggle">
-            <label htmlFor="obligationIsActive">Ativo</label>
-            <input
-              id="obligationIsActive"
-              type="checkbox"
-              checked={obligationForm.isActive}
-              onChange={(event) =>
-                setObligationForm({ ...obligationForm, isActive: event.target.checked })
-              }
-            />
-          </div>
+                      <div>
+                        <label htmlFor="entryEndDate">Fim (opcional)</label>
+                        <input
+                          id="entryEndDate"
+                          type="date"
+                          value={entryForm.endDate}
+                          onChange={(event) => setEntryForm({ ...entryForm, endDate: event.target.value })}
+                        />
+                      </div>
+                    </div>
+                  </div>
 
-          <button type="submit" disabled={isSavingObligation}>
-            {isSavingObligation ? 'Salvando despesa...' : 'Salvar despesa'}
-          </button>
-        </form>
-        {obligationSuccessMessage ? <p>{obligationSuccessMessage}</p> : null}
-        </section>
+                  <div className="form-block">
+                    <p className="form-block-title">Organização</p>
+                    <div className="form-grid">
+                      <div>
+                        <label htmlFor="entryDueDay">Dia de vencimento</label>
+                        <input
+                          id="entryDueDay"
+                          type="number"
+                          min="1"
+                          max="31"
+                          value={entryForm.dueDay}
+                          onChange={(event) => setEntryForm({ ...entryForm, dueDay: event.target.value })}
+                          required
+                        />
+                      </div>
 
-        <section>
-          <h2>Entradas cadastradas</h2>
-          {editingEntryId ? (
-            <form onSubmit={handleUpdateEntry}>
-              <h3>Editar entrada</h3>
-              <div>
-                <label htmlFor="editEntryTitle">Título</label>
-                <input
-                  id="editEntryTitle"
-                  type="text"
-                  value={editingEntryForm.title}
-                  onChange={(event) =>
-                    setEditingEntryForm({ ...editingEntryForm, title: event.target.value })
-                  }
-                  required
-                />
-              </div>
+                      <div>
+                        <label htmlFor="entryBlockType">Bloco financeiro</label>
+                        <select
+                          id="entryBlockType"
+                          value={entryForm.blockType}
+                          onChange={(event) =>
+                            setEntryForm({
+                              ...entryForm,
+                              blockType: event.target.value as EntryFormState['blockType']
+                            })
+                          }
+                        >
+                          <option value="10">10</option>
+                          <option value="25">25</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
 
-              <div>
-                <label htmlFor="editEntryAmount">Valor</label>
-                <input
-                  id="editEntryAmount"
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  value={editingEntryForm.amount}
-                  onChange={(event) =>
-                    setEditingEntryForm({ ...editingEntryForm, amount: event.target.value })
-                  }
-                  required
-                />
-              </div>
+                  <div className="form-inline-toggle">
+                    <label htmlFor="entryIsActive">Ativo</label>
+                    <input
+                      id="entryIsActive"
+                      type="checkbox"
+                      checked={entryForm.isActive}
+                      onChange={(event) => setEntryForm({ ...entryForm, isActive: event.target.checked })}
+                    />
+                  </div>
 
-              <div>
-                <label htmlFor="editEntryRecurrenceType">Recorrência</label>
-                <select
-                  id="editEntryRecurrenceType"
-                  value={editingEntryForm.recurrenceType}
-                  onChange={(event) =>
-                    setEditingEntryForm({
-                      ...editingEntryForm,
-                      recurrenceType: event.target.value as EntryFormState['recurrenceType']
-                    })
-                  }
-                >
-                  <option value="monthly">Mensal</option>
-                  <option value="one_time">Avulsa</option>
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="editEntryStartDate">Data inicial</label>
-                <input
-                  id="editEntryStartDate"
-                  type="date"
-                  value={editingEntryForm.startDate}
-                  onChange={(event) =>
-                    setEditingEntryForm({ ...editingEntryForm, startDate: event.target.value })
-                  }
-                  required
-                />
-              </div>
-
-              <div>
-                <label htmlFor="editEntryEndDate">Data final</label>
-                <input
-                  id="editEntryEndDate"
-                  type="date"
-                  value={editingEntryForm.endDate}
-                  onChange={(event) =>
-                    setEditingEntryForm({ ...editingEntryForm, endDate: event.target.value })
-                  }
-                />
-              </div>
-
-              <div>
-                <label htmlFor="editEntryDueDay">Dia de vencimento</label>
-                <input
-                  id="editEntryDueDay"
-                  type="number"
-                  min="1"
-                  max="31"
-                  value={editingEntryForm.dueDay}
-                  onChange={(event) =>
-                    setEditingEntryForm({ ...editingEntryForm, dueDay: event.target.value })
-                  }
-                  required
-                />
-              </div>
-
-              <div>
-                <label htmlFor="editEntryBlockType">Bloco</label>
-                <select
-                  id="editEntryBlockType"
-                  value={editingEntryForm.blockType}
-                  onChange={(event) =>
-                    setEditingEntryForm({
-                      ...editingEntryForm,
-                      blockType: event.target.value as EntryFormState['blockType']
-                    })
-                  }
-                >
-                  <option value="10">10</option>
-                  <option value="25">25</option>
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="editEntryIsActive">Ativo</label>
-                <input
-                  id="editEntryIsActive"
-                  type="checkbox"
-                  checked={editingEntryForm.isActive}
-                  onChange={(event) =>
-                    setEditingEntryForm({ ...editingEntryForm, isActive: event.target.checked })
-                  }
-                />
-              </div>
-
-              <button type="submit" disabled={isUpdatingEntry}>
-                {isUpdatingEntry ? 'Atualizando...' : 'Salvar entrada'}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingEntryId(null);
-                  setEditingEntryForm(initialEntryForm);
-                }}
-              >
-                Cancelar
-              </button>
-            </form>
-          ) : null}
-          <div className="mobile-list-grid">
-            {entryList.map((entryItem, index) => (
-              <article key={`${entryItem.title}-${entryItem.start_date}-${entryItem.amount}-${index}`} className="mobile-list-card">
-                <p className="mobile-list-title">{entryItem.title}</p>
-                <p className="mobile-list-value">{currencyFormatter.format(Number(entryItem.amount))}</p>
-                <p>Tipo: Entrada</p>
-                <p>Data: {entryItem.start_date}</p>
-                <p>Bloco financeiro: {entryItem.block_type}</p>
-                <p>Status: {entryItem.is_active ? 'Ativo' : 'Inativo'}</p>
-                <div className="button-row">
-                  <button type="button" onClick={() => handleStartEditEntry(entryItem)}>
-                    Editar
+                  <button type="submit" disabled={isSavingEntry}>
+                    {isSavingEntry ? 'Salvando entrada...' : 'Salvar entrada'}
                   </button>
-                  <button type="button" onClick={() => handleDeleteEntry(entryItem.id)}>
-                    Excluir
+                </form>
+              </section>
+            ) : null}
+
+            {launchesView === 'obligations' ? (
+              <section className="launch-panel" id="obligation-create-section">
+                <h3>Nova despesa</h3>
+                <form className="modern-form" onSubmit={handleCreateObligation}>
+                  <div className="form-block">
+                    <p className="form-block-title">Informações principais</p>
+                    <div className="form-grid">
+                      <div>
+                        <label htmlFor="obligationTitle">Título</label>
+                        <input
+                          id="obligationTitle"
+                          type="text"
+                          value={obligationForm.title}
+                          onChange={(event) =>
+                            setObligationForm({ ...obligationForm, title: event.target.value })
+                          }
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="obligationAmount">Valor (R$)</label>
+                        <input
+                          id="obligationAmount"
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          value={obligationForm.amount}
+                          onChange={(event) =>
+                            setObligationForm({ ...obligationForm, amount: event.target.value })
+                          }
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="form-block">
+                    <p className="form-block-title">Tipo e recorrência</p>
+                    <div className="form-grid">
+                      <div>
+                        <label htmlFor="obligationType">Tipo</label>
+                        <select
+                          id="obligationType"
+                          value={obligationForm.type}
+                          onChange={(event) =>
+                            setObligationForm({
+                              ...obligationForm,
+                              type: event.target.value as ObligationFormState['type'],
+                              totalInstallments:
+                                event.target.value === 'parcelada' ? obligationForm.totalInstallments : ''
+                            })
+                          }
+                        >
+                          <option value="fixa">Fixa</option>
+                          <option value="unica">Única</option>
+                          <option value="parcelada">Parcelada</option>
+                        </select>
+                      </div>
+
+                      {obligationForm.type === 'parcelada' ? (
+                        <div>
+                          <label htmlFor="obligationInstallments">Total de parcelas</label>
+                          <input
+                            id="obligationInstallments"
+                            type="number"
+                            min="1"
+                            value={obligationForm.totalInstallments}
+                            onChange={(event) =>
+                              setObligationForm({ ...obligationForm, totalInstallments: event.target.value })
+                            }
+                            required
+                          />
+                        </div>
+                      ) : null}
+
+                      <div>
+                        <label htmlFor="obligationRecurrenceType">Recorrência</label>
+                        <select
+                          id="obligationRecurrenceType"
+                          value={obligationForm.recurrenceType}
+                          onChange={(event) =>
+                            setObligationForm({
+                              ...obligationForm,
+                              recurrenceType: event.target.value as ObligationFormState['recurrenceType']
+                            })
+                          }
+                        >
+                          <option value="monthly">Mensal</option>
+                          <option value="one_time">Avulsa</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="form-block">
+                    <p className="form-block-title">Período e organização</p>
+                    <div className="form-grid">
+                      <div>
+                        <label htmlFor="obligationStartDate">Início</label>
+                        <input
+                          id="obligationStartDate"
+                          type="date"
+                          value={obligationForm.startDate}
+                          onChange={(event) =>
+                            setObligationForm({ ...obligationForm, startDate: event.target.value })
+                          }
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="obligationEndDate">Fim (opcional)</label>
+                        <input
+                          id="obligationEndDate"
+                          type="date"
+                          value={obligationForm.endDate}
+                          onChange={(event) => setObligationForm({ ...obligationForm, endDate: event.target.value })}
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="obligationDueDay">Dia de vencimento</label>
+                        <input
+                          id="obligationDueDay"
+                          type="number"
+                          min="1"
+                          max="31"
+                          value={obligationForm.dueDay}
+                          onChange={(event) => setObligationForm({ ...obligationForm, dueDay: event.target.value })}
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="obligationBlockType">Bloco financeiro</label>
+                        <select
+                          id="obligationBlockType"
+                          value={obligationForm.blockType}
+                          onChange={(event) =>
+                            setObligationForm({
+                              ...obligationForm,
+                              blockType: event.target.value as ObligationFormState['blockType']
+                            })
+                          }
+                        >
+                          <option value="10">10</option>
+                          <option value="25">25</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="form-inline-toggle">
+                    <label htmlFor="obligationIsActive">Ativo</label>
+                    <input
+                      id="obligationIsActive"
+                      type="checkbox"
+                      checked={obligationForm.isActive}
+                      onChange={(event) =>
+                        setObligationForm({ ...obligationForm, isActive: event.target.checked })
+                      }
+                    />
+                  </div>
+
+                  <button type="submit" disabled={isSavingObligation}>
+                    {isSavingObligation ? 'Salvando despesa...' : 'Salvar despesa'}
                   </button>
+                </form>
+              </section>
+            ) : null}
+
+            {launchesView === 'history' ? (
+              <section className="launch-panel">
+                <h3>Histórico de lançamentos</h3>
+                <p className="launch-subtitle">Consulte, edite e exclua lançamentos com ações rápidas em cada item.</p>
+
+                {editingEntryId ? (
+                  <form className="launch-edit-form" onSubmit={handleUpdateEntry}>
+                    <h4>Editar entrada</h4>
+                    <div>
+                      <label htmlFor="editEntryTitle">Título</label>
+                      <input
+                        id="editEntryTitle"
+                        type="text"
+                        value={editingEntryForm.title}
+                        onChange={(event) =>
+                          setEditingEntryForm({ ...editingEntryForm, title: event.target.value })
+                        }
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="editEntryAmount">Valor</label>
+                      <input
+                        id="editEntryAmount"
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        value={editingEntryForm.amount}
+                        onChange={(event) =>
+                          setEditingEntryForm({ ...editingEntryForm, amount: event.target.value })
+                        }
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="editEntryRecurrenceType">Recorrência</label>
+                      <select
+                        id="editEntryRecurrenceType"
+                        value={editingEntryForm.recurrenceType}
+                        onChange={(event) =>
+                          setEditingEntryForm({
+                            ...editingEntryForm,
+                            recurrenceType: event.target.value as EntryFormState['recurrenceType']
+                          })
+                        }
+                      >
+                        <option value="monthly">Mensal</option>
+                        <option value="one_time">Avulsa</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label htmlFor="editEntryStartDate">Data inicial</label>
+                      <input
+                        id="editEntryStartDate"
+                        type="date"
+                        value={editingEntryForm.startDate}
+                        onChange={(event) =>
+                          setEditingEntryForm({ ...editingEntryForm, startDate: event.target.value })
+                        }
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="editEntryEndDate">Data final</label>
+                      <input
+                        id="editEntryEndDate"
+                        type="date"
+                        value={editingEntryForm.endDate}
+                        onChange={(event) =>
+                          setEditingEntryForm({ ...editingEntryForm, endDate: event.target.value })
+                        }
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="editEntryDueDay">Dia de vencimento</label>
+                      <input
+                        id="editEntryDueDay"
+                        type="number"
+                        min="1"
+                        max="31"
+                        value={editingEntryForm.dueDay}
+                        onChange={(event) =>
+                          setEditingEntryForm({ ...editingEntryForm, dueDay: event.target.value })
+                        }
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="editEntryBlockType">Bloco</label>
+                      <select
+                        id="editEntryBlockType"
+                        value={editingEntryForm.blockType}
+                        onChange={(event) =>
+                          setEditingEntryForm({
+                            ...editingEntryForm,
+                            blockType: event.target.value as EntryFormState['blockType']
+                          })
+                        }
+                      >
+                        <option value="10">10</option>
+                        <option value="25">25</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label htmlFor="editEntryIsActive">Ativo</label>
+                      <input
+                        id="editEntryIsActive"
+                        type="checkbox"
+                        checked={editingEntryForm.isActive}
+                        onChange={(event) =>
+                          setEditingEntryForm({ ...editingEntryForm, isActive: event.target.checked })
+                        }
+                      />
+                    </div>
+
+                    <div className="button-row">
+                      <button type="submit" disabled={isUpdatingEntry}>
+                        {isUpdatingEntry ? 'Atualizando...' : 'Salvar entrada'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingEntryId(null);
+                          setEditingEntryForm(initialEntryForm);
+                        }}
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </form>
+                ) : null}
+
+                {editingObligationId ? (
+                  <form className="launch-edit-form" onSubmit={handleUpdateObligation}>
+                    <h4>Editar despesa</h4>
+                    <div>
+                      <label htmlFor="editObligationTitle">Título</label>
+                      <input
+                        id="editObligationTitle"
+                        type="text"
+                        value={editingObligationForm.title}
+                        onChange={(event) =>
+                          setEditingObligationForm({ ...editingObligationForm, title: event.target.value })
+                        }
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="editObligationAmount">Valor</label>
+                      <input
+                        id="editObligationAmount"
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        value={editingObligationForm.amount}
+                        onChange={(event) =>
+                          setEditingObligationForm({ ...editingObligationForm, amount: event.target.value })
+                        }
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="editObligationType">Tipo</label>
+                      <select
+                        id="editObligationType"
+                        value={editingObligationForm.type}
+                        onChange={(event) =>
+                          setEditingObligationForm({
+                            ...editingObligationForm,
+                            type: event.target.value as ObligationFormState['type'],
+                            totalInstallments:
+                              event.target.value === 'parcelada' ? editingObligationForm.totalInstallments : ''
+                          })
+                        }
+                      >
+                        <option value="fixa">Fixa</option>
+                        <option value="unica">Única</option>
+                        <option value="parcelada">Parcelada</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label htmlFor="editObligationRecurrenceType">Recorrência</label>
+                      <select
+                        id="editObligationRecurrenceType"
+                        value={editingObligationForm.recurrenceType}
+                        onChange={(event) =>
+                          setEditingObligationForm({
+                            ...editingObligationForm,
+                            recurrenceType: event.target.value as ObligationFormState['recurrenceType']
+                          })
+                        }
+                      >
+                        <option value="monthly">Mensal</option>
+                        <option value="one_time">Avulsa</option>
+                      </select>
+                    </div>
+
+                    {editingObligationForm.type === 'parcelada' ? (
+                      <div>
+                        <label htmlFor="editObligationInstallments">Total de parcelas</label>
+                        <input
+                          id="editObligationInstallments"
+                          type="number"
+                          min="1"
+                          value={editingObligationForm.totalInstallments}
+                          onChange={(event) =>
+                            setEditingObligationForm({
+                              ...editingObligationForm,
+                              totalInstallments: event.target.value
+                            })
+                          }
+                          required
+                        />
+                      </div>
+                    ) : null}
+
+                    <div>
+                      <label htmlFor="editObligationStartDate">Data inicial</label>
+                      <input
+                        id="editObligationStartDate"
+                        type="date"
+                        value={editingObligationForm.startDate}
+                        onChange={(event) =>
+                          setEditingObligationForm({ ...editingObligationForm, startDate: event.target.value })
+                        }
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="editObligationEndDate">Data final</label>
+                      <input
+                        id="editObligationEndDate"
+                        type="date"
+                        value={editingObligationForm.endDate}
+                        onChange={(event) =>
+                          setEditingObligationForm({ ...editingObligationForm, endDate: event.target.value })
+                        }
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="editObligationDueDay">Dia de vencimento</label>
+                      <input
+                        id="editObligationDueDay"
+                        type="number"
+                        min="1"
+                        max="31"
+                        value={editingObligationForm.dueDay}
+                        onChange={(event) =>
+                          setEditingObligationForm({ ...editingObligationForm, dueDay: event.target.value })
+                        }
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="editObligationBlockType">Bloco</label>
+                      <select
+                        id="editObligationBlockType"
+                        value={editingObligationForm.blockType}
+                        onChange={(event) =>
+                          setEditingObligationForm({
+                            ...editingObligationForm,
+                            blockType: event.target.value as ObligationFormState['blockType']
+                          })
+                        }
+                      >
+                        <option value="10">10</option>
+                        <option value="25">25</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label htmlFor="editObligationIsActive">Ativo</label>
+                      <input
+                        id="editObligationIsActive"
+                        type="checkbox"
+                        checked={editingObligationForm.isActive}
+                        onChange={(event) =>
+                          setEditingObligationForm({
+                            ...editingObligationForm,
+                            isActive: event.target.checked
+                          })
+                        }
+                      />
+                    </div>
+
+                    <div className="button-row">
+                      <button type="submit" disabled={isUpdatingObligation}>
+                        {isUpdatingObligation ? 'Atualizando...' : 'Salvar despesa'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingObligationId(null);
+                          setEditingObligationForm(initialObligationForm);
+                        }}
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </form>
+                ) : null}
+
+                <div className="mobile-list-grid launch-history-grid">
+                  {launchHistoryItems.length > 0 ? (
+                    launchHistoryItems.map((historyItem) => (
+                      <article
+                        key={`${historyItem.source}-${historyItem.id}-${historyItem.date}`}
+                        className="mobile-list-card"
+                      >
+                        <p className="mobile-list-title">{historyItem.title}</p>
+                        <p className="mobile-list-value">{currencyFormatter.format(historyItem.amount)}</p>
+                        <p>Tipo: {historyItem.typeLabel}</p>
+                        <p>Categoria: {historyItem.detailLabel}</p>
+                        <p>Data: {historyItem.date}</p>
+                        <p>Bloco financeiro: {historyItem.blockType}</p>
+                        <p>Status: {historyItem.isActive ? 'Ativo' : 'Inativo'}</p>
+                        <div className="button-row">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (historyItem.source === 'entry') {
+                                handleStartEditEntry(historyItem.originalItem as EntryListRow);
+                                return;
+                              }
+
+                              handleStartEditObligation(historyItem.originalItem as ObligationListRow);
+                            }}
+                          >
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (historyItem.source === 'entry') {
+                                handleDeleteEntry(historyItem.id);
+                                return;
+                              }
+
+                              handleDeleteObligation(historyItem.id);
+                            }}
+                          >
+                            Excluir
+                          </button>
+                        </div>
+                      </article>
+                    ))
+                  ) : (
+                    <p>Nenhum lançamento cadastrado até o momento.</p>
+                  )}
                 </div>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section>
-          <h2>Despesas cadastradas</h2>
-          {editingObligationId ? (
-            <form onSubmit={handleUpdateObligation}>
-              <h3>Editar despesa</h3>
-              <div>
-                <label htmlFor="editObligationTitle">Título</label>
-                <input
-                  id="editObligationTitle"
-                  type="text"
-                  value={editingObligationForm.title}
-                  onChange={(event) =>
-                    setEditingObligationForm({ ...editingObligationForm, title: event.target.value })
-                  }
-                  required
-                />
-              </div>
-
-              <div>
-                <label htmlFor="editObligationAmount">Valor</label>
-                <input
-                  id="editObligationAmount"
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  value={editingObligationForm.amount}
-                  onChange={(event) =>
-                    setEditingObligationForm({ ...editingObligationForm, amount: event.target.value })
-                  }
-                  required
-                />
-              </div>
-
-              <div>
-                <label htmlFor="editObligationType">Tipo</label>
-                <select
-                  id="editObligationType"
-                  value={editingObligationForm.type}
-                  onChange={(event) =>
-                    setEditingObligationForm({
-                      ...editingObligationForm,
-                      type: event.target.value as ObligationFormState['type'],
-                      totalInstallments:
-                        event.target.value === 'parcelada' ? editingObligationForm.totalInstallments : ''
-                    })
-                  }
-                >
-                  <option value="fixa">Fixa</option>
-                  <option value="unica">Única</option>
-                  <option value="parcelada">Parcelada</option>
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="editObligationRecurrenceType">Recorrência</label>
-                <select
-                  id="editObligationRecurrenceType"
-                  value={editingObligationForm.recurrenceType}
-                  onChange={(event) =>
-                    setEditingObligationForm({
-                      ...editingObligationForm,
-                      recurrenceType: event.target.value as ObligationFormState['recurrenceType']
-                    })
-                  }
-                >
-                  <option value="monthly">Mensal</option>
-                  <option value="one_time">Avulsa</option>
-                </select>
-              </div>
-
-              {editingObligationForm.type === 'parcelada' ? (
-                <div>
-                  <label htmlFor="editObligationInstallments">Total de parcelas</label>
-                  <input
-                    id="editObligationInstallments"
-                    type="number"
-                    min="1"
-                    value={editingObligationForm.totalInstallments}
-                    onChange={(event) =>
-                      setEditingObligationForm({
-                        ...editingObligationForm,
-                        totalInstallments: event.target.value
-                      })
-                    }
-                    required
-                  />
-                </div>
-              ) : null}
-
-              <div>
-                <label htmlFor="editObligationStartDate">Data inicial</label>
-                <input
-                  id="editObligationStartDate"
-                  type="date"
-                  value={editingObligationForm.startDate}
-                  onChange={(event) =>
-                    setEditingObligationForm({ ...editingObligationForm, startDate: event.target.value })
-                  }
-                  required
-                />
-              </div>
-
-              <div>
-                <label htmlFor="editObligationEndDate">Data final</label>
-                <input
-                  id="editObligationEndDate"
-                  type="date"
-                  value={editingObligationForm.endDate}
-                  onChange={(event) =>
-                    setEditingObligationForm({ ...editingObligationForm, endDate: event.target.value })
-                  }
-                />
-              </div>
-
-              <div>
-                <label htmlFor="editObligationDueDay">Dia de vencimento</label>
-                <input
-                  id="editObligationDueDay"
-                  type="number"
-                  min="1"
-                  max="31"
-                  value={editingObligationForm.dueDay}
-                  onChange={(event) =>
-                    setEditingObligationForm({ ...editingObligationForm, dueDay: event.target.value })
-                  }
-                  required
-                />
-              </div>
-
-              <div>
-                <label htmlFor="editObligationBlockType">Bloco</label>
-                <select
-                  id="editObligationBlockType"
-                  value={editingObligationForm.blockType}
-                  onChange={(event) =>
-                    setEditingObligationForm({
-                      ...editingObligationForm,
-                      blockType: event.target.value as ObligationFormState['blockType']
-                    })
-                  }
-                >
-                  <option value="10">10</option>
-                  <option value="25">25</option>
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="editObligationIsActive">Ativo</label>
-                <input
-                  id="editObligationIsActive"
-                  type="checkbox"
-                  checked={editingObligationForm.isActive}
-                  onChange={(event) =>
-                    setEditingObligationForm({
-                      ...editingObligationForm,
-                      isActive: event.target.checked
-                    })
-                  }
-                />
-              </div>
-
-              <button type="submit" disabled={isUpdatingObligation}>
-                {isUpdatingObligation ? 'Atualizando...' : 'Salvar despesa'}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingObligationId(null);
-                  setEditingObligationForm(initialObligationForm);
-                }}
-              >
-                Cancelar
-              </button>
-            </form>
-          ) : null}
-          <div className="mobile-list-grid">
-            {obligationList.map((obligationItem, index) => (
-              <article key={`${obligationItem.title}-${obligationItem.start_date}-${obligationItem.amount}-${index}`} className="mobile-list-card">
-                <p className="mobile-list-title">{obligationItem.title}</p>
-                <p className="mobile-list-value">{currencyFormatter.format(Number(obligationItem.amount))}</p>
-                <p>Tipo: Despesa ({obligationItem.type})</p>
-                <p>Data: {obligationItem.start_date}</p>
-                <p>Bloco financeiro: {obligationItem.block_type}</p>
-                <p>Status: {obligationItem.is_active ? 'Ativo' : 'Inativo'}</p>
-                {obligationItem.total_installments ? <p>Parcelas: {obligationItem.total_installments}</p> : null}
-                <div className="button-row">
-                  <button type="button" onClick={() => handleStartEditObligation(obligationItem)}>
-                    Editar
-                  </button>
-                  <button type="button" onClick={() => handleDeleteObligation(obligationItem.id)}>
-                    Excluir
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-        </>
+              </section>
+            ) : null}
+          </section>
         ) : null}
 
         {activeSection === 'perfil' ? (
-          <section className="card">
-            <h2>Perfil/Menu</h2>
-            <p>Usuário autenticado: {userEmail || 'Não identificado'}</p>
-            <p>Área preparada para futura foto de perfil e configurações.</p>
-            <button type="button" onClick={handleLogout}>
-              Sair
-            </button>
+          <section className="card profile-card">
+            <h2>Perfil</h2>
+            <article className="profile-identity">
+              <div className="profile-avatar" aria-hidden="true">
+                👤
+              </div>
+              <div>
+                <p className="profile-name">{userEmail ? userEmail.split('@')[0] : 'Usuário'}</p>
+                <p className="profile-email">{userEmail || 'E-mail não identificado'}</p>
+              </div>
+            </article>
+
+            <div className="profile-sections">
+              <article className="profile-section-card">
+                <h3>Conta</h3>
+                <p>Dados essenciais da sua conta para identificação e acesso.</p>
+              </article>
+
+              <article className="profile-section-card">
+                <h3>Preferências</h3>
+                <p>Ajustes visuais e de navegação serão centralizados aqui.</p>
+              </article>
+
+              <article className="profile-section-card">
+                <h3>Sobre o app</h3>
+                <p>Casa em Dia foi feito para simplificar o controle financeiro da família.</p>
+              </article>
+            </div>
+
+            <div className="profile-actions">
+              <button type="button" className="logout-button" onClick={handleLogout}>
+                Sair da conta
+              </button>
+            </div>
           </section>
         ) : null}
       </div>
@@ -2574,7 +2708,7 @@ export default function HomePage() {
           onClick={() => setActiveSection('home')}
         >
           <span aria-hidden="true">🏠</span>
-          <span>Home</span>
+          <span>Início</span>
         </button>
         <button
           type="button"
