@@ -1329,7 +1329,8 @@ export default function HomePage() {
       {userEmail ? <p>Usuário: {userEmail}</p> : null}
       {currentMonthPendingMessages.length > 0 ? (
         <section className="card pending-alerts">
-          <ul>
+          <h2 className="pending-alerts-title">Pendências do mês atual</h2>
+          <ul className="pending-alerts-list">
             {currentMonthPendingMessages.map((message) => (
               <li key={message}>{message}</li>
             ))}
@@ -1381,9 +1382,9 @@ export default function HomePage() {
                       {getRiskBadgeLabel(monthRiskByKey.get(month.key)?.level ?? 'seguro')}
                     </span>
                   </td>
-                  <td>{currencyFormatter.format(month.totalEntries)}</td>
-                  <td>{currencyFormatter.format(month.totalObligations)}</td>
-                  <td>{currencyFormatter.format(month.balance)}</td>
+                  <td><span className="money-value">{currencyFormatter.format(month.totalEntries)}</span></td>
+                  <td><span className="money-value">{currencyFormatter.format(month.totalObligations)}</span></td>
+                  <td><span className={`money-value ${getBalanceTone(month.balance)}`}>{currencyFormatter.format(month.balance)}</span></td>
                   <td>{getMonthAlerts(month).join(' • ') || 'Sem alertas'}</td>
                 </tr>
               ))}
@@ -1424,12 +1425,12 @@ export default function HomePage() {
                       {getRiskBadgeLabel(monthRiskByKey.get(month.key)?.level ?? 'seguro')}
                     </span>
                   </td>
-                  <td>{currencyFormatter.format(month.block10.entries)}</td>
-                  <td>{currencyFormatter.format(month.block10.obligations)}</td>
-                  <td>{currencyFormatter.format(month.block10.balance)}</td>
-                  <td>{currencyFormatter.format(month.block25.entries)}</td>
-                  <td>{currencyFormatter.format(month.block25.obligations)}</td>
-                  <td>{currencyFormatter.format(month.block25.balance)}</td>
+                  <td><span className="money-value">{currencyFormatter.format(month.block10.entries)}</span></td>
+                  <td><span className="money-value">{currencyFormatter.format(month.block10.obligations)}</span></td>
+                  <td><span className={`money-value ${getBalanceTone(month.block10.balance)}`}>{currencyFormatter.format(month.block10.balance)}</span></td>
+                  <td><span className="money-value">{currencyFormatter.format(month.block25.entries)}</span></td>
+                  <td><span className="money-value">{currencyFormatter.format(month.block25.obligations)}</span></td>
+                  <td><span className={`money-value ${getBalanceTone(month.block25.balance)}`}>{currencyFormatter.format(month.block25.balance)}</span></td>
                   <td>{getMonthAlerts(month).join(' • ') || 'Sem alertas'}</td>
                 </tr>
               ))}

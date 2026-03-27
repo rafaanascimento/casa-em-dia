@@ -26,6 +26,7 @@
   --radius-md: 10px;
   --radius-lg: 14px;
   --shadow-soft: 0 8px 24px rgba(15, 23, 42, 0.06);
+  --shadow-soft-hover: 0 12px 28px rgba(15, 23, 42, 0.1);
 }
 
 * {
@@ -65,7 +66,7 @@ body {
 
 .content-grid {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-5);
 }
 
 .card {
@@ -74,24 +75,28 @@ body {
   border-radius: var(--radius-lg);
   padding: var(--space-5);
   box-shadow: var(--shadow-soft);
+  transition: box-shadow 0.16s ease;
+}
+
+.card:hover {
+  box-shadow: var(--shadow-soft-hover);
 }
 
 .pending-alerts {
-  border-left: 4px solid var(--color-warning);
-  background: #fffbeb;
+  border-left: 5px solid var(--color-danger);
+  background: linear-gradient(180deg, #fff8f8 0%, #fff 100%);
 }
 
-.pending-alerts ul {
+.pending-alerts-title {
+  margin: 0 0 var(--space-2);
+  font-size: 1.05rem;
+  color: #7f1d1d;
+}
+
+.pending-alerts-list {
   margin: 0;
-}
-
-.pending-alerts {
-  border-left: 4px solid #d97706;
-  background: #fffbeb;
-}
-
-.pending-alerts ul {
-  margin: 0;
+  display: grid;
+  gap: var(--space-1);
 }
 
 h2,
@@ -123,6 +128,10 @@ li,
 th,
 td {
   color: var(--text-secondary);
+}
+
+p {
+  line-height: 1.5;
 }
 
 .button-row {
@@ -201,7 +210,7 @@ thead th {
 th,
 td {
   border-bottom: 1px solid var(--color-border);
-  padding: 0.65rem;
+  padding: 0.72rem;
   vertical-align: top;
 }
 
@@ -258,6 +267,7 @@ li {
   font-size: 0.78rem;
   font-weight: 700;
   margin-left: 0.25rem;
+  border: 1px solid transparent;
 }
 
 .badge-current {
@@ -276,17 +286,26 @@ li {
 .status-success {
   background: var(--pill-success-bg);
   color: var(--pill-success-text);
+  border-color: #86efac;
 }
 
 .status-negative {
   background: var(--pill-danger-bg);
   color: var(--pill-danger-text);
+  border-color: #fca5a5;
 }
 
 .status-tight,
 .status-pending {
   background: var(--pill-warning-bg);
   color: var(--pill-warning-text);
+  border-color: #fcd34d;
+}
+
+.money-value {
+  display: inline-block;
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
 tr.is-current-month td:first-child {
@@ -312,6 +331,10 @@ tr.is-safe-month {
 
   .card {
     padding: 0.9rem;
+  }
+
+  .card:hover {
+    box-shadow: var(--shadow-soft);
   }
 
   table {
