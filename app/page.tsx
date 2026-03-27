@@ -2480,6 +2480,7 @@ export default function HomePage() {
         ) : null}
       </div>
 
+      <div className="bottom-safe-spacer" aria-hidden="true" />
       <div className="fab-placeholder" aria-hidden="true" />
 
       <nav className="bottom-nav" aria-label="Navegação mobile">

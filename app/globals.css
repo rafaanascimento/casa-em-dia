@@ -170,6 +170,11 @@ body {
   pointer-events: none;
 }
 
+.bottom-safe-spacer {
+  height: calc(9rem + env(safe-area-inset-bottom, 0px));
+  width: 100%;
+}
+
 .bottom-nav {
   position: fixed;
   left: 0;
