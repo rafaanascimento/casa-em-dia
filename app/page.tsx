@@ -341,7 +341,7 @@ const getRiskBadgeLabel = (riskLevel: MonthRiskAnalysis['level']) => {
     return 'Atenção';
   }
 
-  return 'OK';
+  return 'Ok';
 };
 
 const normalizeSourceType = (sourceType: string) => {
@@ -380,6 +380,13 @@ const normalizeMonthKey = (monthKey: string) => {
 
   const [, year, month] = matchedMonth;
   return `${year}-${month.padStart(2, '0')}`;
+};
+
+const sectionSubtitleBySection: Record<DashboardSection, string> = {
+  home: 'Resumo do mês com visão rápida da família.',
+  lancamentos: 'Cadastre e ajuste entradas e despesas com clareza.',
+  projecao: 'Acompanhe cenários futuros para planejar com segurança.',
+  perfil: 'Gerencie sua conta e preferências do app.'
 };
 
 export default function HomePage() {
@@ -1399,7 +1406,7 @@ export default function HomePage() {
               {userEmail ? `, ${userEmail.split('@')[0]}` : ''}.
             </p>
             <h1 className="app-title">Casa em Dia</h1>
-            <p className="brand-subtitle">Seu painel financeiro familiar</p>
+            <p className="brand-subtitle">{sectionSubtitleBySection[activeSection]}</p>
           </div>
         </div>
       </header>
@@ -2508,13 +2515,40 @@ export default function HomePage() {
         ) : null}
 
         {activeSection === 'perfil' ? (
-          <section className="card">
-            <h2>Perfil/Menu</h2>
-            <p>Usuário autenticado: {userEmail || 'Não identificado'}</p>
-            <p>Área preparada para futura foto de perfil e configurações.</p>
-            <button type="button" onClick={handleLogout}>
-              Sair
-            </button>
+          <section className="card profile-card">
+            <h2>Perfil</h2>
+            <article className="profile-identity">
+              <div className="profile-avatar" aria-hidden="true">
+                👤
+              </div>
+              <div>
+                <p className="profile-name">{userEmail ? userEmail.split('@')[0] : 'Usuário'}</p>
+                <p className="profile-email">{userEmail || 'E-mail não identificado'}</p>
+              </div>
+            </article>
+
+            <div className="profile-sections">
+              <article className="profile-section-card">
+                <h3>Conta</h3>
+                <p>Dados essenciais da sua conta para identificação e acesso.</p>
+              </article>
+
+              <article className="profile-section-card">
+                <h3>Preferências</h3>
+                <p>Ajustes visuais e de navegação serão centralizados aqui.</p>
+              </article>
+
+              <article className="profile-section-card">
+                <h3>Sobre o app</h3>
+                <p>Casa em Dia foi feito para simplificar o controle financeiro da família.</p>
+              </article>
+            </div>
+
+            <div className="profile-actions">
+              <button type="button" className="logout-button" onClick={handleLogout}>
+                Sair da conta
+              </button>
+            </div>
           </section>
         ) : null}
       </div>
@@ -2574,7 +2608,7 @@ export default function HomePage() {
           onClick={() => setActiveSection('home')}
         >
           <span aria-hidden="true">🏠</span>
-          <span>Home</span>
+          <span>Início</span>
         </button>
         <button
           type="button"
