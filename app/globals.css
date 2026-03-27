@@ -1,5 +1,5 @@
 :root {
-  --bg-page: #f3f6fc;
+  --bg-page: #f5f7fb;
   --bg-card: #ffffff;
   --bg-soft: #f8fafc;
   --text-primary: #0f172a;
@@ -25,8 +25,8 @@
   --space-5: 1.25rem;
   --radius-md: 10px;
   --radius-lg: 14px;
-  --shadow-soft: 0 8px 24px rgba(15, 23, 42, 0.06);
-  --shadow-soft-hover: 0 12px 28px rgba(15, 23, 42, 0.1);
+  --shadow-soft: 0 6px 20px rgba(15, 23, 42, 0.06);
+  --shadow-soft-hover: 0 10px 24px rgba(15, 23, 42, 0.09);
 }
 
 * {
@@ -38,7 +38,7 @@ body {
   margin: 0;
   padding: 0;
   font-family: Inter, Arial, sans-serif;
-  background: linear-gradient(180deg, #f8faff 0%, var(--bg-page) 100%);
+  background: var(--bg-page);
   color: var(--text-primary);
 }
 
@@ -84,13 +84,13 @@ body {
 
 .pending-alerts {
   border-left: 5px solid var(--color-danger);
-  background: linear-gradient(180deg, #fff8f8 0%, #fff 100%);
+  background: #fff;
 }
 
 .pending-alerts-title {
   margin: 0 0 var(--space-2);
   font-size: 1.05rem;
-  color: #7f1d1d;
+  color: #991b1b;
 }
 
 .pending-alerts-list {
@@ -144,7 +144,7 @@ p {
 button {
   border: 1px solid transparent;
   border-radius: var(--radius-md);
-  background: linear-gradient(180deg, var(--color-accent) 0%, var(--color-accent-strong) 100%);
+  background: var(--color-accent);
   color: #fff;
   padding: 0.6rem 0.95rem;
   font-weight: 600;
@@ -155,8 +155,13 @@ button {
 
 button:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.22);
-  filter: brightness(1.02);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.2);
+  background: var(--color-accent-strong);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(0);
+  filter: brightness(0.98);
 }
 
 button:disabled {
@@ -192,18 +197,21 @@ select:focus {
 
 table {
   width: 100%;
+  display: block;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   border-collapse: separate;
   border-spacing: 0;
   min-width: 680px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  overflow: hidden;
+  background: #fff;
 }
 
 thead th {
-  background: #eff6ff;
+  background: #f8fafc;
   text-align: left;
-  color: #1e3a8a;
+  color: #334155;
   font-weight: 700;
 }
 
@@ -219,7 +227,7 @@ tbody tr:last-child td {
 }
 
 tbody tr:hover {
-  background: #f8fbff;
+  background: #f3f6fb;
 }
 
 details {
@@ -265,7 +273,7 @@ li {
   border-radius: 999px;
   padding: 0.15rem 0.55rem;
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 600;
   margin-left: 0.25rem;
   border: 1px solid transparent;
 }
@@ -277,29 +285,29 @@ li {
   padding: 0.15rem 0.5rem;
   border-radius: 999px;
   font-size: 0.72rem;
-  font-weight: 700;
+  font-weight: 600;
   background: var(--pill-accent-bg);
   color: var(--pill-accent-text);
 }
 
 .status-positive,
 .status-success {
-  background: var(--pill-success-bg);
+  background: #f0fdf4;
   color: var(--pill-success-text);
-  border-color: #86efac;
+  border-color: #bbf7d0;
 }
 
 .status-negative {
-  background: var(--pill-danger-bg);
+  background: #fef2f2;
   color: var(--pill-danger-text);
-  border-color: #fca5a5;
+  border-color: #fecaca;
 }
 
 .status-tight,
 .status-pending {
-  background: var(--pill-warning-bg);
+  background: #fff7ed;
   color: var(--pill-warning-text);
-  border-color: #fcd34d;
+  border-color: #fed7aa;
 }
 
 .money-value {
@@ -312,12 +320,16 @@ tr.is-current-month td:first-child {
   border-left: 4px solid var(--color-accent);
 }
 
+tr.is-current-month {
+  background: #eef4ff;
+}
+
 tr.is-risk-month {
   background: #fef2f2;
 }
 
 tr.is-warning-month {
-  background: #fffbeb;
+  background: #f8fafc;
 }
 
 tr.is-safe-month {
@@ -326,7 +338,7 @@ tr.is-safe-month {
 
 @media (max-width: 900px) {
   .app-shell {
-    padding: 0.75rem;
+    padding: 0.7rem;
   }
 
   .card {
