@@ -101,6 +101,12 @@ body {
   background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
 }
 
+
+.app-header {
+  border: 1px solid #dbe5ff;
+  background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
+}
+
 .brand-row {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -254,6 +260,50 @@ body {
   color: #14532d;
 }
 
+.home-month-nav-card {
+  padding: 0.5rem 0.55rem;
+}
+
+.home-month-nav {
+  display: flex;
+  gap: 0.42rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  padding-bottom: 0.2rem;
+}
+
+.home-month-tab {
+  border: 1px solid #dce9df;
+  background: #f8fbf9;
+  color: #4b5563;
+  border-radius: 999px;
+  min-width: 4.6rem;
+  padding: 0.36rem 0.66rem;
+  line-height: 1.15;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.06rem;
+  box-shadow: none;
+  transform: none;
+}
+
+.home-month-tab small {
+  font-size: 0.64rem;
+  color: #6b7280;
+}
+
+.home-month-tab.is-selected {
+  background: #ecfdf3;
+  color: #14532d;
+  border-color: #86efac;
+}
+
+.home-month-tab.is-selected small {
+  color: #166534;
+}
+
 .home-month-title span {
   font-size: 0.78rem;
   font-weight: 600;
@@ -351,6 +401,29 @@ body {
   font-size: 0.72rem;
 }
 
+.home-commitment-action-button {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #166534;
+  box-shadow: none;
+}
+
+.home-commitment-action-button:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+  background: #dcfce7;
+}
+
+.home-commitment-action-button.is-danger {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.home-commitment-action-button.is-danger:hover:not(:disabled) {
+  background: #fee2e2;
+}
+
 .home-commitment-editor input {
   width: 6.8rem;
   padding: 0.34rem 0.45rem;
@@ -440,24 +513,6 @@ body {
 .home-month-total p {
   margin: 0.15rem 0;
   font-size: 0.82rem;
-}
-
-.pending-alerts-compact {
-  border-left-width: 3px;
-  padding: 0.65rem;
-}
-
-.pending-alerts-compact details {
-  margin-top: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-}
-
-.pending-alerts-summary {
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: #9a3412;
 }
 
 .main-balance-value {

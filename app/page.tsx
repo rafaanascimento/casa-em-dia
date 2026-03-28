@@ -436,6 +436,7 @@ export default function HomePage() {
   const [obligationSuccessMessage, setObligationSuccessMessage] = useState('');
   const [activeCommitmentEditorKey, setActiveCommitmentEditorKey] = useState<string | null>(null);
   const [openCommitmentMenuKey, setOpenCommitmentMenuKey] = useState<string | null>(null);
+  const [selectedHomeMonthKey, setSelectedHomeMonthKey] = useState<string | null>(null);
   const [operationAmountDraft, setOperationAmountDraft] = useState('');
   const [operationStatusDraft, setOperationStatusDraft] = useState<'received' | 'paid'>('paid');
 
@@ -518,33 +519,33 @@ export default function HomePage() {
       { data: obligationsListData, error: obligationsListError },
       { data: occurrencesData, error: occurrencesError }
     ] = await Promise.all([
-        supabase
-          .from('entries')
-          .select('id, title, amount, recurrence_type, start_date, end_date, block_type')
-          .eq('family_id', currentFamilyId)
-          .eq('is_active', true),
-        supabase
-          .from('obligations')
-          .select('id, title, amount, type, recurrence_type, total_installments, start_date, end_date, block_type')
-          .eq('family_id', currentFamilyId)
-          .eq('is_active', true),
-        supabase
-          .from('entries')
-          .select('id, title, amount, recurrence_type, start_date, end_date, due_day, block_type, is_active')
-          .eq('family_id', currentFamilyId)
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('obligations')
-          .select(
-            'id, title, amount, type, recurrence_type, total_installments, start_date, end_date, due_day, block_type, is_active'
-          )
-          .eq('family_id', currentFamilyId)
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('monthly_occurrences')
-          .select('family_id, source_type, source_id, month_key, title, amount, block_type, status, processed_at')
-          .eq('family_id', currentFamilyId)
-      ]);
+      supabase
+        .from('entries')
+        .select('id, title, amount, recurrence_type, start_date, end_date, block_type')
+        .eq('family_id', currentFamilyId)
+        .eq('is_active', true),
+      supabase
+        .from('obligations')
+        .select('id, title, amount, type, recurrence_type, total_installments, start_date, end_date, block_type')
+        .eq('family_id', currentFamilyId)
+        .eq('is_active', true),
+      supabase
+        .from('entries')
+        .select('id, title, amount, recurrence_type, start_date, end_date, due_day, block_type, is_active')
+        .eq('family_id', currentFamilyId)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('obligations')
+        .select(
+          'id, title, amount, type, recurrence_type, total_installments, start_date, end_date, due_day, block_type, is_active'
+        )
+        .eq('family_id', currentFamilyId)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('monthly_occurrences')
+        .select('family_id, source_type, source_id, month_key, title, amount, block_type, status, processed_at')
+        .eq('family_id', currentFamilyId)
+    ]);
 
     if (entriesError || obligationsError || entriesListError || obligationsListError || occurrencesError) {
       setError('Não foi possível carregar os dados para projeção mensal.');
@@ -706,7 +707,6 @@ export default function HomePage() {
     });
   }, [entries, obligations]);
 
-
   const launchHistoryItems = useMemo(
     () =>
       [
@@ -840,10 +840,34 @@ export default function HomePage() {
   const getOccurrenceStatus = (sourceType: 'entry' | 'obligation', sourceId: string, monthKey: string) =>
     getOccurrence(sourceType, sourceId, monthKey)?.status ?? 'pending';
 
-  const currentMonthKey = useMemo(() => {
+  const systemCurrentMonthKey = useMemo(() => {
     const currentDate = new Date();
     return `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
   }, []);
+
+  useEffect(() => {
+    if (projection.length === 0) {
+      return;
+    }
+
+    const hasSelectedMonth = selectedHomeMonthKey
+      ? projection.some((month) => month.key === selectedHomeMonthKey)
+      : false;
+
+    if (hasSelectedMonth) {
+      return;
+    }
+
+    const defaultMonth =
+      projection.find((month) => month.key === systemCurrentMonthKey)?.key ?? projection[0]?.key ?? null;
+
+    setSelectedHomeMonthKey(defaultMonth);
+  }, [projection, selectedHomeMonthKey, systemCurrentMonthKey]);
+
+  const currentMonthKey = useMemo(
+    () => selectedHomeMonthKey ?? systemCurrentMonthKey,
+    [selectedHomeMonthKey, systemCurrentMonthKey]
+  );
 
   const greetingMessage = useMemo(() => {
     const currentHour = new Date().getHours();
@@ -859,56 +883,10 @@ export default function HomePage() {
     return 'Boa noite';
   }, []);
 
-  const currentMonthPendingMessages = useMemo(() => {
-    const currentMonthDetails = monthDetailsByKey.get(currentMonthKey);
-    const currentMonthEntries = currentMonthDetails?.entries ?? [];
-    const currentMonthObligations = currentMonthDetails?.obligations ?? [];
-
-    const hasPendingEntries = currentMonthEntries.some(
-      (entryItem) => getOccurrenceStatus('entry', entryItem.id, currentMonthKey) === 'pending'
-    );
-    const hasPendingObligations = currentMonthObligations.some(
-      (obligationItem) => getOccurrenceStatus('obligation', obligationItem.id, currentMonthKey) === 'pending'
-    );
-    const messages: string[] = [];
-
-    if (hasPendingEntries) {
-      messages.push('Você possui entradas não recebidas neste mês');
-    }
-
-    if (hasPendingObligations) {
-      messages.push('Você possui despesas não pagas neste mês');
-    }
-
-    if (hasPendingEntries || hasPendingObligations) {
-      messages.push('Existem pendências financeiras no mês atual');
-    }
-
-    return messages;
-  }, [monthDetailsByKey, currentMonthKey, monthlyOccurrences, familyId]);
-
   const currentMonthProjection = useMemo(
     () => projection.find((month) => month.key === currentMonthKey) ?? null,
     [projection, currentMonthKey]
   );
-
-  const currentMonthPendingSummary = useMemo(() => {
-    const currentMonthDetails = monthDetailsByKey.get(currentMonthKey);
-    const currentMonthEntries = currentMonthDetails?.entries ?? [];
-    const currentMonthObligations = currentMonthDetails?.obligations ?? [];
-
-    const pendingEntries = currentMonthEntries.filter(
-      (entryItem) => getOccurrenceStatus('entry', entryItem.id, currentMonthKey) === 'pending'
-    ).length;
-    const pendingObligations = currentMonthObligations.filter(
-      (obligationItem) => getOccurrenceStatus('obligation', obligationItem.id, currentMonthKey) === 'pending'
-    ).length;
-
-    return {
-      pendingEntries,
-      pendingObligations
-    };
-  }, [monthDetailsByKey, currentMonthKey, monthlyOccurrences, familyId]);
 
   const currentMonthReferenceDate = useMemo(() => {
     const [year, month] = currentMonthKey.split('-').map(Number);
@@ -924,6 +902,23 @@ export default function HomePage() {
       year: String(currentMonthReferenceDate.getFullYear())
     };
   }, [currentMonthReferenceDate]);
+
+  const homeMonths = useMemo(
+    () =>
+      projection.map((month) => {
+        const [year, monthNumber] = month.key.split('-');
+        const monthDate = new Date(Number(year), Number(monthNumber) - 1, 1);
+        const monthLabel = monthDate.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
+        const formattedMonthLabel = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1);
+
+        return {
+          key: month.key,
+          label: formattedMonthLabel,
+          year
+        };
+      }),
+    [projection]
+  );
 
   const currentMonthCommitments = useMemo(() => {
     const entriesCommitments = entryList
@@ -1021,7 +1016,6 @@ export default function HomePage() {
       }
     );
   };
-
 
   const currentMonthHomeSummary = useMemo(() => {
     const mergedSummary = getOperationalSummary(currentMonthCommitments);
@@ -1691,269 +1685,297 @@ export default function HomePage() {
           </div>
         </div>
       </header>
-      {activeSection === 'home' && currentMonthPendingMessages.length > 0 ? (
-        <section className="card pending-alerts pending-alerts-compact">
-          <details>
-            <summary className="pending-alerts-summary">
-              ⚠️ Pendências do mês: {currentMonthPendingSummary.pendingEntries + currentMonthPendingSummary.pendingObligations}
-            </summary>
-            <ul className="pending-alerts-list">
-              {currentMonthPendingMessages.map((message) => (
-                <li key={message}>{message}</li>
-              ))}
-            </ul>
-          </details>
-        </section>
-      ) : null}
 
       <div className="content-grid">
         {activeSection === 'home' ? (
-        <>
-        <section className="card home-main-card">
-          {currentMonthProjection ? (
-            <>
-              <header className="home-month-header">
-                <p className="home-month-title">
-                  {currentMonthLabel.month} <span>{currentMonthLabel.year}</span>
-                </p>
-                <span className={`status-pill ${getRiskTone(currentMonthRisk.level)}`}>
-                  {getRiskBadgeLabel(currentMonthRisk.level)}
-                </span>
-              </header>
+          <>
+            <section className="card home-month-nav-card">
+              <div className="home-month-nav" role="tablist" aria-label="Selecionar mês exibido na Home">
+                {homeMonths.map((month) => {
+                  const isSelected = month.key === currentMonthKey;
 
-              <section className="home-commitments">
-                <h3>Compromissos do mês</h3>
-                {currentMonthCommitments.length > 0 ? (
-                  <ul className="home-commitments-list">
-                    {currentMonthCommitments.map((item) => (
-                      <li
-                        key={`commitment-${item.kind}-${item.id}`}
-                        className={`home-commitment-item ${
-                          item.kind === 'Entrada' ? 'commitment-entry' : 'commitment-obligation'
-                        }`}
-                      >
-                        <div className="home-commitment-row-main">
-                          <p className="home-commitment-title">{item.title}</p>
-                          <div className="home-commitment-main-right">
-                            <p className="home-commitment-value">{currencyFormatter.format(item.effectiveAmount)}</p>
-                            <button
-                              type="button"
-                              className="home-commitment-menu-button"
-                              aria-label={`Abrir ações de ${item.title}`}
-                              onClick={() =>
-                                setOpenCommitmentMenuKey((previous) =>
-                                  previous === item.id ? null : item.id
-                                )
-                              }
-                            >
-                              ⋯
-                            </button>
-                          </div>
-                        </div>
-                        <div className="home-commitment-row-meta">
-                          <p className="home-commitment-meta">
-                            Vencimento: {item.dueDay ? String(item.dueDay).padStart(2, '0') : '--'}
-                          </p>
-                          <p className="home-commitment-meta">{item.kind}</p>
-                          <span
-                            className={`status-pill ${
-                              item.status === 'pending' ? 'status-pending' : 'status-success'
+                  return (
+                    <button
+                      key={`home-month-tab-${month.key}`}
+                      type="button"
+                      role="tab"
+                      aria-selected={isSelected}
+                      className={`home-month-tab ${isSelected ? 'is-selected' : ''}`}
+                      onClick={() => {
+                        setSelectedHomeMonthKey(month.key);
+                        setOpenCommitmentMenuKey(null);
+                        setActiveCommitmentEditorKey(null);
+                        setOperationAmountDraft('');
+                      }}
+                    >
+                      <span>{month.label}</span>
+                      <small>{month.year}</small>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section className="card home-main-card">
+              {currentMonthProjection ? (
+                <>
+                  <header className="home-month-header">
+                    <p className="home-month-title">
+                      {currentMonthLabel.month} <span>{currentMonthLabel.year}</span>
+                    </p>
+                    <span className={`status-pill ${getRiskTone(currentMonthRisk.level)}`}>
+                      {getRiskBadgeLabel(currentMonthRisk.level)}
+                    </span>
+                  </header>
+
+                  <section className="home-commitments">
+                    <h3>Compromissos do mês</h3>
+                    {currentMonthCommitments.length > 0 ? (
+                      <ul className="home-commitments-list">
+                        {currentMonthCommitments.map((item) => (
+                          <li
+                            key={`commitment-${item.kind}-${item.id}`}
+                            className={`home-commitment-item ${
+                              item.kind === 'Entrada' ? 'commitment-entry' : 'commitment-obligation'
                             }`}
                           >
-                            {item.status === 'pending'
-                              ? item.kind === 'Entrada'
-                                ? 'A receber'
-                                : 'Pendente'
-                              : item.kind === 'Entrada'
-                                ? 'Recebida'
-                                : 'Paga'}
-                          </span>
-                        </div>
+                            <div className="home-commitment-row-main">
+                              <p className="home-commitment-title">{item.title}</p>
+                              <div className="home-commitment-main-right">
+                                <p className="home-commitment-value">{currencyFormatter.format(item.effectiveAmount)}</p>
+                                <button
+                                  type="button"
+                                  className="home-commitment-menu-button"
+                                  aria-label={`Abrir ações de ${item.title}`}
+                                  onClick={() =>
+                                    setOpenCommitmentMenuKey((previous) => (previous === item.id ? null : item.id))
+                                  }
+                                >
+                                  ⋯
+                                </button>
+                              </div>
+                            </div>
+                            <div className="home-commitment-row-meta">
+                              <p className="home-commitment-meta">
+                                Vencimento: {item.dueDay ? String(item.dueDay).padStart(2, '0') : '--'}
+                              </p>
+                              <p className="home-commitment-meta">{item.kind}</p>
+                              <span
+                                className={`status-pill ${
+                                  item.status === 'pending' ? 'status-pending' : 'status-success'
+                                }`}
+                              >
+                                {item.status === 'pending'
+                                  ? item.kind === 'Entrada'
+                                    ? 'A receber'
+                                    : 'Pendente'
+                                  : item.kind === 'Entrada'
+                                    ? 'Recebida'
+                                    : 'Paga'}
+                              </span>
+                            </div>
 
-                        {openCommitmentMenuKey === item.id ? (
-                          <div className="home-commitment-menu">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleOpenCommitmentEditor(
-                                  item.id,
-                                  item.effectiveAmount,
-                                  item.kind === 'Entrada' ? 'received' : 'paid'
-                                )
-                              }
-                            >
-                              {item.status === 'pending'
-                                ? item.kind === 'Entrada'
-                                  ? 'Marcar como recebida'
-                                  : 'Marcar como paga'
-                                : item.kind === 'Entrada'
-                                  ? 'Editar valor recebido'
-                                  : 'Editar valor pago'}
-                            </button>
-                            {item.status !== 'pending' ? (
-                              <button type="button" onClick={() => void handleUndoCommitmentOperation(item)}>
-                                {item.kind === 'Entrada' ? 'Desfazer recebimento' : 'Desfazer pagamento'}
-                              </button>
+                            {openCommitmentMenuKey === item.id ? (
+                              <div className="home-commitment-menu">
+                                <button
+                                  type="button"
+                                  className="home-commitment-action-button"
+                                  onClick={() =>
+                                    handleOpenCommitmentEditor(
+                                      item.id,
+                                      item.effectiveAmount,
+                                      item.kind === 'Entrada' ? 'received' : 'paid'
+                                    )
+                                  }
+                                >
+                                  Editar
+                                </button>
+                                <button
+                                  type="button"
+                                  className="home-commitment-action-button is-danger"
+                                  disabled={item.status === 'pending'}
+                                  onClick={() => void handleUndoCommitmentOperation(item)}
+                                >
+                                  Excluir registro
+                                </button>
+                              </div>
                             ) : null}
-                          </div>
-                        ) : null}
 
-                        {activeCommitmentEditorKey === item.id ? (
-                          <div className="home-commitment-editor">
-                            <input
-                              type="number"
-                              step="0.01"
-                              min="0.01"
-                              value={operationAmountDraft}
-                              onChange={(event) => setOperationAmountDraft(event.target.value)}
-                              aria-label={`Valor real de ${item.title}`}
-                            />
-                            <button
-                              type="button"
-                              disabled={
-                                isUpdatingOccurrenceKey === `${item.sourceType}-${item.id}-${currentMonthKey}`
-                              }
-                              onClick={() => void handleConfirmCommitmentOperation(item)}
-                            >
-                              {isUpdatingOccurrenceKey === `${item.sourceType}-${item.id}-${currentMonthKey}`
-                                ? 'Salvando...'
-                                : operationStatusDraft === 'received'
-                                  ? 'Confirmar recebimento'
-                                  : 'Confirmar pagamento'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setActiveCommitmentEditorKey(null);
-                                setOperationAmountDraft('');
-                              }}
-                            >
-                              Cancelar
-                            </button>
-                          </div>
-                        ) : null}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p>Sem compromissos ativos para este mês.</p>
-                )}
-              </section>
+                            {activeCommitmentEditorKey === item.id ? (
+                              <div className="home-commitment-editor">
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0.01"
+                                  value={operationAmountDraft}
+                                  onChange={(event) => setOperationAmountDraft(event.target.value)}
+                                  aria-label={`Valor real de ${item.title}`}
+                                />
+                                <button
+                                  type="button"
+                                  disabled={
+                                    isUpdatingOccurrenceKey === `${item.sourceType}-${item.id}-${currentMonthKey}`
+                                  }
+                                  onClick={() => void handleConfirmCommitmentOperation(item)}
+                                >
+                                  {isUpdatingOccurrenceKey === `${item.sourceType}-${item.id}-${currentMonthKey}`
+                                    ? 'Salvando...'
+                                    : 'Salvar edição'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveCommitmentEditorKey(null);
+                                    setOperationAmountDraft('');
+                                  }}
+                                >
+                                  Cancelar
+                                </button>
+                              </div>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p>Sem compromissos ativos para este mês.</p>
+                    )}
+                  </section>
 
-              <section className="current-month-blocks">
-                <h3>Blocos do mês</h3>
-                <details className="home-block-details">
-                  <summary>
-                    Bloco 10 • {currentMonthBlock10Items.length} itens
-                  </summary>
-                  {currentMonthBlock10Items.length > 0 ? (
-                    <ul className="home-block-list">
-                      {currentMonthBlock10Items.map((item) => (
-                        <li key={`block10-${item.kind}-${item.id}`} className="home-block-list-item">
-                          <div className="home-block-item-main-row">
-                            <p className="home-block-item-title">{item.title}</p>
-                            <p className={`home-block-item-value ${item.kind === 'Entrada' ? 'commitment-entry' : 'commitment-obligation'}`}>
-                              {currencyFormatter.format(item.amount)}
-                            </p>
-                          </div>
-                          <div className="home-block-item-meta-row">
-                            <p className="home-block-item-meta">Vencimento: {item.dueDay ? String(item.dueDay).padStart(2, '0') : '--'}</p>
-                            <p className="home-block-item-meta">{item.kind}</p>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p>Sem lançamentos no bloco 10.</p>
-                  )}
-                  <p className="home-block-mini-summary">
-                    Entradas: {currencyFormatter.format(currentMonthProjection.block10.entries)} • Despesas:{' '}
-                    {currencyFormatter.format(currentMonthProjection.block10.obligations)} • Saldo:{' '}
-                    <span className={`money-value ${getBalanceTone(currentMonthProjection.block10.balance)}`}>
-                      {currencyFormatter.format(currentMonthProjection.block10.balance)}
-                    </span>
-                  </p>
-                </details>
+                  <section className="current-month-blocks">
+                    <h3>Blocos do mês</h3>
 
-                <details className="home-block-details">
-                  <summary>
-                    Bloco 25 • {currentMonthBlock25Items.length} itens
-                  </summary>
-                  {currentMonthBlock25Items.length > 0 ? (
-                    <ul className="home-block-list">
-                      {currentMonthBlock25Items.map((item) => (
-                        <li key={`block25-${item.kind}-${item.id}`} className="home-block-list-item">
-                          <div className="home-block-item-main-row">
-                            <p className="home-block-item-title">{item.title}</p>
-                            <p className={`home-block-item-value ${item.kind === 'Entrada' ? 'commitment-entry' : 'commitment-obligation'}`}>
-                              {currencyFormatter.format(item.amount)}
-                            </p>
-                          </div>
-                          <div className="home-block-item-meta-row">
-                            <p className="home-block-item-meta">Vencimento: {item.dueDay ? String(item.dueDay).padStart(2, '0') : '--'}</p>
-                            <p className="home-block-item-meta">{item.kind}</p>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p>Sem lançamentos no bloco 25.</p>
-                  )}
-                  <p className="home-block-mini-summary">
-                    Entradas: {currencyFormatter.format(currentMonthProjection.block25.entries)} • Despesas:{' '}
-                    {currencyFormatter.format(currentMonthProjection.block25.obligations)} • Saldo:{' '}
-                    <span className={`money-value ${getBalanceTone(currentMonthProjection.block25.balance)}`}>
-                      {currencyFormatter.format(currentMonthProjection.block25.balance)}
-                    </span>
-                  </p>
-                </details>
-              </section>
+                    <details className="home-block-details">
+                      <summary>Bloco 10 • {currentMonthBlock10Items.length} itens</summary>
+                      {currentMonthBlock10Items.length > 0 ? (
+                        <ul className="home-block-list">
+                          {currentMonthBlock10Items.map((item) => (
+                            <li key={`block10-${item.kind}-${item.id}`} className="home-block-list-item">
+                              <div className="home-block-item-main-row">
+                                <p className="home-block-item-title">{item.title}</p>
+                                <p
+                                  className={`home-block-item-value ${
+                                    item.kind === 'Entrada' ? 'commitment-entry' : 'commitment-obligation'
+                                  }`}
+                                >
+                                  {currencyFormatter.format(item.amount)}
+                                </p>
+                              </div>
+                              <div className="home-block-item-meta-row">
+                                <p className="home-block-item-meta">
+                                  Vencimento: {item.dueDay ? String(item.dueDay).padStart(2, '0') : '--'}
+                                </p>
+                                <p className="home-block-item-meta">{item.kind}</p>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p>Sem lançamentos no bloco 10.</p>
+                      )}
+                      <p className="home-block-mini-summary">
+                        Entradas: {currencyFormatter.format(currentMonthProjection.block10.entries)} • Despesas:{' '}
+                        {currencyFormatter.format(currentMonthProjection.block10.obligations)} • Saldo:{' '}
+                        <span className={`money-value ${getBalanceTone(currentMonthProjection.block10.balance)}`}>
+                          {currencyFormatter.format(currentMonthProjection.block10.balance)}
+                        </span>
+                      </p>
+                    </details>
 
-              <section className="home-month-total">
-                <h3>Total geral do mês</h3>
-                <p>
-                  Entradas previstas: <span className="money-value">{currencyFormatter.format(currentMonthHomeSummary.entriesPlanned)}</span>
-                </p>
-                <p>
-                  Entradas recebidas:{' '}
-                  <span className="money-value">{currencyFormatter.format(currentMonthHomeSummary.entriesReceived)}</span>
-                </p>
-                <p>
-                  Entradas pendentes:{' '}
-                  <span className="money-value">{currencyFormatter.format(currentMonthHomeSummary.entriesPending)}</span>
-                </p>
-                <p>
-                  Despesas previstas:{' '}
-                  <span className="money-value">{currencyFormatter.format(currentMonthHomeSummary.obligationsPlanned)}</span>
-                </p>
-                <p>
-                  Despesas pagas:{' '}
-                  <span className="money-value">{currencyFormatter.format(currentMonthHomeSummary.obligationsPaid)}</span>
-                </p>
-                <p>
-                  Despesas pendentes:{' '}
-                  <span className="money-value">{currencyFormatter.format(currentMonthHomeSummary.obligationsPending)}</span>
-                </p>
-                <p>
-                  Saldo previsto:{' '}
-                  <span className={`money-value ${getBalanceTone(currentMonthHomeSummary.plannedBalance)}`}>
-                    {currencyFormatter.format(currentMonthHomeSummary.plannedBalance)}
-                  </span>
-                </p>
-                <p>
-                  Saldo operacional:{' '}
-                  <span className={`money-value ${getBalanceTone(currentMonthHomeSummary.operationalBalance)}`}>
-                    {currencyFormatter.format(currentMonthHomeSummary.operationalBalance)}
-                  </span>
-                </p>
-              </section>
-            </>
-          ) : (
-            <p>Sem dados disponíveis para o mês atual.</p>
-          )}
-        </section>
-        
-        </>
+                    <details className="home-block-details">
+                      <summary>Bloco 25 • {currentMonthBlock25Items.length} itens</summary>
+                      {currentMonthBlock25Items.length > 0 ? (
+                        <ul className="home-block-list">
+                          {currentMonthBlock25Items.map((item) => (
+                            <li key={`block25-${item.kind}-${item.id}`} className="home-block-list-item">
+                              <div className="home-block-item-main-row">
+                                <p className="home-block-item-title">{item.title}</p>
+                                <p
+                                  className={`home-block-item-value ${
+                                    item.kind === 'Entrada' ? 'commitment-entry' : 'commitment-obligation'
+                                  }`}
+                                >
+                                  {currencyFormatter.format(item.amount)}
+                                </p>
+                              </div>
+                              <div className="home-block-item-meta-row">
+                                <p className="home-block-item-meta">
+                                  Vencimento: {item.dueDay ? String(item.dueDay).padStart(2, '0') : '--'}
+                                </p>
+                                <p className="home-block-item-meta">{item.kind}</p>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p>Sem lançamentos no bloco 25.</p>
+                      )}
+                      <p className="home-block-mini-summary">
+                        Entradas: {currencyFormatter.format(currentMonthProjection.block25.entries)} • Despesas:{' '}
+                        {currencyFormatter.format(currentMonthProjection.block25.obligations)} • Saldo:{' '}
+                        <span className={`money-value ${getBalanceTone(currentMonthProjection.block25.balance)}`}>
+                          {currencyFormatter.format(currentMonthProjection.block25.balance)}
+                        </span>
+                      </p>
+                    </details>
+                  </section>
+
+                  <section className="home-month-total">
+                    <h3>Total geral do mês</h3>
+                    <p>
+                      Entradas previstas:{' '}
+                      <span className="money-value">
+                        {currencyFormatter.format(currentMonthHomeSummary.entriesPlanned)}
+                      </span>
+                    </p>
+                    <p>
+                      Entradas recebidas:{' '}
+                      <span className="money-value">
+                        {currencyFormatter.format(currentMonthHomeSummary.entriesReceived)}
+                      </span>
+                    </p>
+                    <p>
+                      Entradas pendentes:{' '}
+                      <span className="money-value">
+                        {currencyFormatter.format(currentMonthHomeSummary.entriesPending)}
+                      </span>
+                    </p>
+                    <p>
+                      Despesas previstas:{' '}
+                      <span className="money-value">
+                        {currencyFormatter.format(currentMonthHomeSummary.obligationsPlanned)}
+                      </span>
+                    </p>
+                    <p>
+                      Despesas pagas:{' '}
+                      <span className="money-value">
+                        {currencyFormatter.format(currentMonthHomeSummary.obligationsPaid)}
+                      </span>
+                    </p>
+                    <p>
+                      Despesas pendentes:{' '}
+                      <span className="money-value">
+                        {currencyFormatter.format(currentMonthHomeSummary.obligationsPending)}
+                      </span>
+                    </p>
+                    <p>
+                      Saldo previsto:{' '}
+                      <span className={`money-value ${getBalanceTone(currentMonthHomeSummary.plannedBalance)}`}>
+                        {currencyFormatter.format(currentMonthHomeSummary.plannedBalance)}
+                      </span>
+                    </p>
+                    <p>
+                      Saldo operacional:{' '}
+                      <span className={`money-value ${getBalanceTone(currentMonthHomeSummary.operationalBalance)}`}>
+                        {currencyFormatter.format(currentMonthHomeSummary.operationalBalance)}
+                      </span>
+                    </p>
+                  </section>
+                </>
+              ) : (
+                <p>Sem dados disponíveis para o mês atual.</p>
+              )}
+            </section>
+          </>
         ) : null}
 
         {activeSection === 'projecao' ? (
@@ -1995,7 +2017,7 @@ export default function HomePage() {
                         <header className="projection-month-header">
                           <p className="projection-month-title">
                             {month.label}
-                            {month.key === currentMonthKey ? <span className="badge-current">Atual</span> : null}
+                            {month.key === systemCurrentMonthKey ? <span className="badge-current">Atual</span> : null}
                           </p>
                           <span className={`status-pill ${getRiskTone(riskLevel)}`}>
                             {getRiskBadgeLabel(riskLevel)}
@@ -2005,12 +2027,10 @@ export default function HomePage() {
                         {projectionViewMode === 'monthly' ? (
                           <div className="projection-month-metrics">
                             <p>
-                              Entradas:{' '}
-                              <span className="money-value">{currencyFormatter.format(month.totalEntries)}</span>
+                              Entradas: <span className="money-value">{currencyFormatter.format(month.totalEntries)}</span>
                             </p>
                             <p>
-                              Despesas:{' '}
-                              <span className="money-value">{currencyFormatter.format(month.totalObligations)}</span>
+                              Despesas: <span className="money-value">{currencyFormatter.format(month.totalObligations)}</span>
                             </p>
                             <p>
                               Saldo previsto:{' '}
@@ -2081,7 +2101,7 @@ export default function HomePage() {
                         <header className="month-summary-header">
                           <h4>
                             {month.label}
-                            {month.key === currentMonthKey ? <span className="badge-current">Atual</span> : null}
+                            {month.key === systemCurrentMonthKey ? <span className="badge-current">Atual</span> : null}
                           </h4>
                           <span className={`status-pill ${getRiskTone(monthRisk?.level ?? 'seguro')}`}>
                             {getRiskBadgeLabel(monthRisk?.level ?? 'seguro')}
@@ -2096,7 +2116,9 @@ export default function HomePage() {
                             <p>Saldo previsto: {currencyFormatter.format(month.balance)}</p>
                             <p>
                               Status do mês:{' '}
-                              <span className={`status-pill ${getBalanceTone(month.balance)}`}>{getMonthStatus(month.balance)}</span>
+                              <span className={`status-pill ${getBalanceTone(month.balance)}`}>
+                                {getMonthStatus(month.balance)}
+                              </span>
                             </p>
                           </section>
 
@@ -2159,10 +2181,7 @@ export default function HomePage() {
                         <details
                           open={expandedMonthKeys.includes(month.key)}
                           onToggle={(event) =>
-                            handleMonthDetailsToggle(
-                              month.key,
-                              (event.currentTarget as HTMLDetailsElement).open
-                            )
+                            handleMonthDetailsToggle(month.key, (event.currentTarget as HTMLDetailsElement).open)
                           }
                         >
                           <summary>Detalhamento do mês</summary>
@@ -2197,9 +2216,7 @@ export default function HomePage() {
                                         )
                                       }
                                     >
-                                      {isUpdatingOccurrenceKey === occurrenceKey
-                                        ? 'Salvando...'
-                                        : 'Marcar como recebida'}
+                                      {isUpdatingOccurrenceKey === occurrenceKey ? 'Salvando...' : 'Marcar como recebida'}
                                     </button>
                                   </li>
                                 );
@@ -2243,9 +2260,7 @@ export default function HomePage() {
                                         )
                                       }
                                     >
-                                      {isUpdatingOccurrenceKey === occurrenceKey
-                                        ? 'Salvando...'
-                                        : 'Marcar como paga'}
+                                      {isUpdatingOccurrenceKey === occurrenceKey ? 'Salvando...' : 'Marcar como paga'}
                                     </button>
                                   </li>
                                 );
@@ -2450,9 +2465,7 @@ export default function HomePage() {
                           id="obligationTitle"
                           type="text"
                           value={obligationForm.title}
-                          onChange={(event) =>
-                            setObligationForm({ ...obligationForm, title: event.target.value })
-                          }
+                          onChange={(event) => setObligationForm({ ...obligationForm, title: event.target.value })}
                           required
                         />
                       </div>
@@ -2465,9 +2478,7 @@ export default function HomePage() {
                           step="0.01"
                           min="0.01"
                           value={obligationForm.amount}
-                          onChange={(event) =>
-                            setObligationForm({ ...obligationForm, amount: event.target.value })
-                          }
+                          onChange={(event) => setObligationForm({ ...obligationForm, amount: event.target.value })}
                           required
                         />
                       </div>
@@ -2541,9 +2552,7 @@ export default function HomePage() {
                           id="obligationStartDate"
                           type="date"
                           value={obligationForm.startDate}
-                          onChange={(event) =>
-                            setObligationForm({ ...obligationForm, startDate: event.target.value })
-                          }
+                          onChange={(event) => setObligationForm({ ...obligationForm, startDate: event.target.value })}
                           required
                         />
                       </div>
@@ -3017,6 +3026,7 @@ export default function HomePage() {
       </div>
 
       <div className="bottom-safe-spacer" aria-hidden="true" />
+
       {isFabOpen ? (
         <button
           type="button"
@@ -3025,6 +3035,7 @@ export default function HomePage() {
           onClick={() => setIsFabOpen(false)}
         />
       ) : null}
+
       <div className="fab-wrapper" onClick={(event) => event.stopPropagation()}>
         {isFabOpen ? (
           <div className="fab-actions" onClick={(event) => event.stopPropagation()}>
@@ -3050,6 +3061,7 @@ export default function HomePage() {
             </button>
           </div>
         ) : null}
+
         <button
           type="button"
           className="fab-button"
