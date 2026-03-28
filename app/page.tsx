@@ -1,5 +1,3 @@
-Segue o app/page.tsx completo, limpo e corrigido, sem o bloco duplicado que estava quebrando o build:
-
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
