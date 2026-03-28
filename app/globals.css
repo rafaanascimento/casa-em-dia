@@ -95,6 +95,12 @@ body {
   background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
 }
 
+
+.app-header {
+  border: 1px solid #dbe5ff;
+  background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
+}
+
 .brand-row {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -306,6 +312,49 @@ body {
   color: #14532d;
 }
 
+.home-commitment-main-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.home-commitment-menu-button {
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 999px;
+  padding: 0;
+  font-size: 1rem;
+  line-height: 1;
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+  box-shadow: none;
+}
+
+.home-commitment-menu-button:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+  background: #dcfce7;
+}
+
+.home-commitment-menu,
+.home-commitment-editor {
+  margin-top: 0.35rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.home-commitment-menu button,
+.home-commitment-editor button {
+  padding: 0.34rem 0.5rem;
+  font-size: 0.72rem;
+}
+
+.home-commitment-editor input {
+  width: 6.8rem;
+  padding: 0.34rem 0.45rem;
+}
 .commitment-entry .home-commitment-value {
   color: #15803d;
 }
@@ -374,23 +423,6 @@ body {
   margin: 0;
   font-size: 0.7rem;
   color: #64748b;
-}
-
-.home-block-item-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.home-block-item-actions input {
-  width: 6.8rem;
-  padding: 0.38rem 0.45rem;
-}
-
-.home-block-item-actions button {
-  padding: 0.38rem 0.55rem;
-  font-size: 0.72rem;
 }
 
 .home-block-mini-summary {
@@ -1239,6 +1271,12 @@ tr.is-safe-month {
 }
 
 .home-block-item-meta-row .status-pill {
+  margin-left: 0;
+  font-size: 0.66rem;
+  padding: 0.1rem 0.42rem;
+}
+
+.home-commitment-row-meta .status-pill {
   margin-left: 0;
   font-size: 0.66rem;
   padding: 0.1rem 0.42rem;

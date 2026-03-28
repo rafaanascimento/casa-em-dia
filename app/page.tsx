@@ -435,7 +435,9 @@ export default function HomePage() {
   const [entrySuccessMessage, setEntrySuccessMessage] = useState('');
   const [obligationSuccessMessage, setObligationSuccessMessage] = useState('');
   const [activeCommitmentEditorKey, setActiveCommitmentEditorKey] = useState<string | null>(null);
+  const [openCommitmentMenuKey, setOpenCommitmentMenuKey] = useState<string | null>(null);
   const [operationAmountDraft, setOperationAmountDraft] = useState('');
+  const [operationStatusDraft, setOperationStatusDraft] = useState<'received' | 'paid'>('paid');
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -1038,9 +1040,15 @@ export default function HomePage() {
     };
   }, [currentMonthCommitments]);
 
-  const handleOpenCommitmentEditor = (itemId: string, defaultAmount: number) => {
+  const handleOpenCommitmentEditor = (
+    itemId: string,
+    defaultAmount: number,
+    targetStatus: 'received' | 'paid'
+  ) => {
     setActiveCommitmentEditorKey(itemId);
     setOperationAmountDraft(defaultAmount.toFixed(2));
+    setOperationStatusDraft(targetStatus);
+    setOpenCommitmentMenuKey(null);
   };
 
   const handleConfirmCommitmentOperation = async (item: (typeof currentMonthCommitments)[number]) => {
@@ -1058,11 +1066,48 @@ export default function HomePage() {
       item.title,
       parsedAmount,
       item.blockType,
-      item.kind === 'Entrada' ? 'received' : 'paid'
+      operationStatusDraft
     );
 
     setActiveCommitmentEditorKey(null);
     setOperationAmountDraft('');
+    setOperationStatusDraft('paid');
+  };
+
+  const handleUndoCommitmentOperation = async (item: (typeof currentMonthCommitments)[number]) => {
+    const normalizedSourceId = item.id.trim();
+    const normalizedMonthKey = normalizeMonthKey(currentMonthKey);
+    const sourceTypeForDatabase = toDatabaseSourceType(item.sourceType);
+
+    const { error: deleteOccurrenceError } = await supabase
+      .from('monthly_occurrences')
+      .delete()
+      .eq('family_id', familyId)
+      .eq('source_type', sourceTypeForDatabase)
+      .eq('source_id', normalizedSourceId)
+      .eq('month_key', normalizedMonthKey);
+
+    if (deleteOccurrenceError) {
+      setError('Não foi possível desfazer o status deste compromisso.');
+      return;
+    }
+
+    setMonthlyOccurrences((previous) =>
+      previous.filter(
+        (occurrence) =>
+          !(
+            occurrence.family_id === familyId &&
+            normalizeSourceType(occurrence.source_type) === item.sourceType &&
+            occurrence.source_id === normalizedSourceId &&
+            normalizeMonthKey(occurrence.month_key) === normalizedMonthKey
+          )
+      )
+    );
+
+    setOpenCommitmentMenuKey(null);
+    setActiveCommitmentEditorKey(null);
+    setOperationAmountDraft('');
+    await loadFinancialData(familyId);
   };
 
   const monthPlannedVsActualByKey = useMemo(() => {
@@ -1689,7 +1734,21 @@ export default function HomePage() {
                       >
                         <div className="home-commitment-row-main">
                           <p className="home-commitment-title">{item.title}</p>
-                          <p className="home-commitment-value">{currencyFormatter.format(item.effectiveAmount)}</p>
+                          <div className="home-commitment-main-right">
+                            <p className="home-commitment-value">{currencyFormatter.format(item.effectiveAmount)}</p>
+                            <button
+                              type="button"
+                              className="home-commitment-menu-button"
+                              aria-label={`Abrir ações de ${item.title}`}
+                              onClick={() =>
+                                setOpenCommitmentMenuKey((previous) =>
+                                  previous === item.id ? null : item.id
+                                )
+                              }
+                            >
+                              ⋯
+                            </button>
+                          </div>
                         </div>
                         <div className="home-commitment-row-meta">
                           <p className="home-commitment-meta">
@@ -1710,45 +1769,18 @@ export default function HomePage() {
                                 : 'Paga'}
                           </span>
                         </div>
-                        <div className="home-block-item-actions">
-                          {activeCommitmentEditorKey === item.id ? (
-                            <>
-                              <input
-                                type="number"
-                                step="0.01"
-                                min="0.01"
-                                value={operationAmountDraft}
-                                onChange={(event) => setOperationAmountDraft(event.target.value)}
-                                aria-label={`Valor real de ${item.title}`}
-                              />
-                              <button
-                                type="button"
-                                disabled={
-                                  isUpdatingOccurrenceKey ===
-                                  `${item.sourceType}-${item.id}-${currentMonthKey}`
-                                }
-                                onClick={() => void handleConfirmCommitmentOperation(item)}
-                              >
-                                {isUpdatingOccurrenceKey === `${item.sourceType}-${item.id}-${currentMonthKey}`
-                                  ? 'Salvando...'
-                                  : item.kind === 'Entrada'
-                                    ? 'Confirmar recebimento'
-                                    : 'Confirmar pagamento'}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setActiveCommitmentEditorKey(null);
-                                  setOperationAmountDraft('');
-                                }}
-                              >
-                                Cancelar
-                              </button>
-                            </>
-                          ) : (
+
+                        {openCommitmentMenuKey === item.id ? (
+                          <div className="home-commitment-menu">
                             <button
                               type="button"
-                              onClick={() => handleOpenCommitmentEditor(item.id, item.effectiveAmount)}
+                              onClick={() =>
+                                handleOpenCommitmentEditor(
+                                  item.id,
+                                  item.effectiveAmount,
+                                  item.kind === 'Entrada' ? 'received' : 'paid'
+                                )
+                              }
                             >
                               {item.status === 'pending'
                                 ? item.kind === 'Entrada'
@@ -1758,8 +1790,48 @@ export default function HomePage() {
                                   ? 'Editar valor recebido'
                                   : 'Editar valor pago'}
                             </button>
-                          )}
-                        </div>
+                            {item.status !== 'pending' ? (
+                              <button type="button" onClick={() => void handleUndoCommitmentOperation(item)}>
+                                {item.kind === 'Entrada' ? 'Desfazer recebimento' : 'Desfazer pagamento'}
+                              </button>
+                            ) : null}
+                          </div>
+                        ) : null}
+
+                        {activeCommitmentEditorKey === item.id ? (
+                          <div className="home-commitment-editor">
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0.01"
+                              value={operationAmountDraft}
+                              onChange={(event) => setOperationAmountDraft(event.target.value)}
+                              aria-label={`Valor real de ${item.title}`}
+                            />
+                            <button
+                              type="button"
+                              disabled={
+                                isUpdatingOccurrenceKey === `${item.sourceType}-${item.id}-${currentMonthKey}`
+                              }
+                              onClick={() => void handleConfirmCommitmentOperation(item)}
+                            >
+                              {isUpdatingOccurrenceKey === `${item.sourceType}-${item.id}-${currentMonthKey}`
+                                ? 'Salvando...'
+                                : operationStatusDraft === 'received'
+                                  ? 'Confirmar recebimento'
+                                  : 'Confirmar pagamento'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveCommitmentEditorKey(null);
+                                setOperationAmountDraft('');
+                              }}
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        ) : null}
                       </li>
                     ))}
                   </ul>
