@@ -1106,43 +1106,7 @@ export default function HomePage() {
     await loadFinancialData(familyId);
   };
 
-  const currentMonthReferenceDate = useMemo(() => {
-    const [year, month] = currentMonthKey.split('-').map(Number);
-    return new Date(year, month - 1, 1);
-  }, [currentMonthKey]);
 
-  const currentMonthLabel = useMemo(() => {
-    const monthName = currentMonthReferenceDate.toLocaleDateString('pt-BR', { month: 'long' });
-    const formattedMonth = monthName.charAt(0).toUpperCase() + monthName.slice(1);
-
-    return {
-      month: formattedMonth,
-      year: String(currentMonthReferenceDate.getFullYear())
-    };
-  }, [currentMonthReferenceDate]);
-
-  const currentMonthCommitments = useMemo(() => {
-    const entriesCommitments = entryList
-      .filter((entryItem) => doesEntryApplyToMonth(entryItem as EntryRow, currentMonthReferenceDate))
-      .map((entryItem) => {
-        const entryOccurrence = getOccurrence('entry', entryItem.id, currentMonthKey);
-        const entryStatus = getOccurrenceStatus('entry', entryItem.id, currentMonthKey);
-        const plannedAmount = Number(entryItem.amount);
-        const effectiveAmount =
-          entryStatus === 'received' && entryOccurrence ? Number(entryOccurrence.amount) : plannedAmount;
-
-        return {
-          id: entryItem.id,
-          title: entryItem.title,
-          amount: plannedAmount,
-          effectiveAmount,
-          dueDay: entryItem.due_day,
-          blockType: normalizeBlockType(entryItem.block_type),
-          kind: 'Entrada' as const,
-          status: entryStatus,
-          sourceType: 'entry' as const
-        };
-      });
 
     const obligationsCommitments = obligationList
       .filter((obligationItem) => doesObligationApplyToMonth(obligationItem as ObligationRow, currentMonthReferenceDate))
