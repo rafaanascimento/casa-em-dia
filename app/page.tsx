@@ -434,8 +434,8 @@ export default function HomePage() {
   const [error, setError] = useState('');
   const [entrySuccessMessage, setEntrySuccessMessage] = useState('');
   const [obligationSuccessMessage, setObligationSuccessMessage] = useState('');
-  const [activePaymentEditorKey, setActivePaymentEditorKey] = useState<string | null>(null);
-  const [paidAmountDraft, setPaidAmountDraft] = useState('');
+  const [activeCommitmentEditorKey, setActiveCommitmentEditorKey] = useState<string | null>(null);
+  const [operationAmountDraft, setOperationAmountDraft] = useState('');
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -926,17 +926,25 @@ export default function HomePage() {
   const currentMonthCommitments = useMemo(() => {
     const entriesCommitments = entryList
       .filter((entryItem) => doesEntryApplyToMonth(entryItem as EntryRow, currentMonthReferenceDate))
-      .map((entryItem) => ({
-        id: entryItem.id,
-        title: entryItem.title,
-        amount: Number(entryItem.amount),
-        effectiveAmount: Number(entryItem.amount),
-        dueDay: entryItem.due_day,
-        blockType: normalizeBlockType(entryItem.block_type),
-        kind: 'Entrada' as const,
-        status: getOccurrenceStatus('entry', entryItem.id, currentMonthKey),
-        sourceType: 'entry' as const
-      }));
+      .map((entryItem) => {
+        const entryOccurrence = getOccurrence('entry', entryItem.id, currentMonthKey);
+        const entryStatus = getOccurrenceStatus('entry', entryItem.id, currentMonthKey);
+        const plannedAmount = Number(entryItem.amount);
+        const effectiveAmount =
+          entryStatus === 'received' && entryOccurrence ? Number(entryOccurrence.amount) : plannedAmount;
+
+        return {
+          id: entryItem.id,
+          title: entryItem.title,
+          amount: plannedAmount,
+          effectiveAmount,
+          dueDay: entryItem.due_day,
+          blockType: normalizeBlockType(entryItem.block_type),
+          kind: 'Entrada' as const,
+          status: entryStatus,
+          sourceType: 'entry' as const
+        };
+      });
 
     const obligationsCommitments = obligationList
       .filter((obligationItem) => doesObligationApplyToMonth(obligationItem as ObligationRow, currentMonthReferenceDate))
@@ -982,84 +990,79 @@ export default function HomePage() {
     [currentMonthCommitments]
   );
 
-  const getHomeBlockSummary = (items: typeof currentMonthCommitments) => {
+  const getOperationalSummary = (items: typeof currentMonthCommitments) => {
     return items.reduce(
       (summary, item) => {
         if (item.kind === 'Entrada') {
-          summary.entries += item.effectiveAmount;
+          summary.entriesPlanned += item.amount;
+
+          if (item.status === 'received') {
+            summary.entriesReceived += item.effectiveAmount;
+          }
+
           return summary;
         }
 
-        summary.obligations += item.effectiveAmount;
+        summary.obligationsPlanned += item.amount;
 
         if (item.status === 'paid') {
-          summary.paidObligations += 1;
-        } else {
-          summary.pendingObligations += 1;
+          summary.obligationsPaid += item.effectiveAmount;
         }
 
         return summary;
       },
       {
-        entries: 0,
-        obligations: 0,
-        paidObligations: 0,
-        pendingObligations: 0
+        entriesPlanned: 0,
+        entriesReceived: 0,
+        obligationsPlanned: 0,
+        obligationsPaid: 0
       }
     );
   };
 
-  const currentMonthBlock10Summary = useMemo(
-    () => getHomeBlockSummary(currentMonthBlock10Items),
-    [currentMonthBlock10Items]
-  );
-
-  const currentMonthBlock25Summary = useMemo(
-    () => getHomeBlockSummary(currentMonthBlock25Items),
-    [currentMonthBlock25Items]
-  );
 
   const currentMonthHomeSummary = useMemo(() => {
-    const mergedSummary = getHomeBlockSummary(currentMonthCommitments);
+    const mergedSummary = getOperationalSummary(currentMonthCommitments);
+    const entriesPending = mergedSummary.entriesPlanned - mergedSummary.entriesReceived;
+    const obligationsPending = mergedSummary.obligationsPlanned - mergedSummary.obligationsPaid;
 
     return {
-      entries: mergedSummary.entries,
-      obligations: mergedSummary.obligations,
-      balance: mergedSummary.entries - mergedSummary.obligations,
-      pendingObligations: mergedSummary.pendingObligations,
-      paidObligations: mergedSummary.paidObligations
+      entriesPlanned: mergedSummary.entriesPlanned,
+      entriesReceived: mergedSummary.entriesReceived,
+      entriesPending,
+      obligationsPlanned: mergedSummary.obligationsPlanned,
+      obligationsPaid: mergedSummary.obligationsPaid,
+      obligationsPending,
+      plannedBalance: mergedSummary.entriesPlanned - mergedSummary.obligationsPlanned,
+      operationalBalance: mergedSummary.entriesReceived - mergedSummary.obligationsPaid
     };
   }, [currentMonthCommitments]);
 
-  const handleOpenPaymentEditor = (itemId: string, defaultAmount: number) => {
-    setActivePaymentEditorKey(itemId);
-    setPaidAmountDraft(defaultAmount.toFixed(2));
+  const handleOpenCommitmentEditor = (itemId: string, defaultAmount: number) => {
+    setActiveCommitmentEditorKey(itemId);
+    setOperationAmountDraft(defaultAmount.toFixed(2));
   };
 
-  const handleConfirmObligationPayment = async (item: (typeof currentMonthCommitments)[number]) => {
-    if (item.kind !== 'Despesa') {
-      return;
-    }
-
-    const parsedAmount = Number(paidAmountDraft);
+  const handleConfirmCommitmentOperation = async (item: (typeof currentMonthCommitments)[number]) => {
+    const parsedAmount = Number(operationAmountDraft);
 
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      setError('Informe um valor pago válido para confirmar.');
+      setError('Informe um valor válido para confirmar.');
       return;
     }
 
     await handleSetOccurrenceStatus(
-      'obligation',
+      item.sourceType,
       item.id,
       currentMonthKey,
       item.title,
       parsedAmount,
       item.blockType,
-      'paid'
+      item.kind === 'Entrada' ? 'received' : 'paid'
     );
 
-    setActivePaymentEditorKey(null);
-    setPaidAmountDraft('');
+    setActiveCommitmentEditorKey(null);
+    setOperationAmountDraft('');
   };
 
   const monthPlannedVsActualByKey = useMemo(() => {
@@ -1686,13 +1689,76 @@ export default function HomePage() {
                       >
                         <div className="home-commitment-row-main">
                           <p className="home-commitment-title">{item.title}</p>
-                          <p className="home-commitment-value">{currencyFormatter.format(item.amount)}</p>
+                          <p className="home-commitment-value">{currencyFormatter.format(item.effectiveAmount)}</p>
                         </div>
                         <div className="home-commitment-row-meta">
                           <p className="home-commitment-meta">
                             Vencimento: {item.dueDay ? String(item.dueDay).padStart(2, '0') : '--'}
                           </p>
                           <p className="home-commitment-meta">{item.kind}</p>
+                          <span
+                            className={`status-pill ${
+                              item.status === 'pending' ? 'status-pending' : 'status-success'
+                            }`}
+                          >
+                            {item.status === 'pending'
+                              ? item.kind === 'Entrada'
+                                ? 'A receber'
+                                : 'Pendente'
+                              : item.kind === 'Entrada'
+                                ? 'Recebida'
+                                : 'Paga'}
+                          </span>
+                        </div>
+                        <div className="home-block-item-actions">
+                          {activeCommitmentEditorKey === item.id ? (
+                            <>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0.01"
+                                value={operationAmountDraft}
+                                onChange={(event) => setOperationAmountDraft(event.target.value)}
+                                aria-label={`Valor real de ${item.title}`}
+                              />
+                              <button
+                                type="button"
+                                disabled={
+                                  isUpdatingOccurrenceKey ===
+                                  `${item.sourceType}-${item.id}-${currentMonthKey}`
+                                }
+                                onClick={() => void handleConfirmCommitmentOperation(item)}
+                              >
+                                {isUpdatingOccurrenceKey === `${item.sourceType}-${item.id}-${currentMonthKey}`
+                                  ? 'Salvando...'
+                                  : item.kind === 'Entrada'
+                                    ? 'Confirmar recebimento'
+                                    : 'Confirmar pagamento'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveCommitmentEditorKey(null);
+                                  setOperationAmountDraft('');
+                                }}
+                              >
+                                Cancelar
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenCommitmentEditor(item.id, item.effectiveAmount)}
+                            >
+                              {item.status === 'pending'
+                                ? item.kind === 'Entrada'
+                                  ? 'Marcar como recebida'
+                                  : 'Marcar como paga'
+                                : item.kind === 'Entrada'
+                                  ? 'Editar valor recebido'
+                                  : 'Editar valor pago'}
+                            </button>
+                          )}
                         </div>
                       </li>
                     ))}
@@ -1715,57 +1781,13 @@ export default function HomePage() {
                           <div className="home-block-item-main-row">
                             <p className="home-block-item-title">{item.title}</p>
                             <p className={`home-block-item-value ${item.kind === 'Entrada' ? 'commitment-entry' : 'commitment-obligation'}`}>
-                              {currencyFormatter.format(item.effectiveAmount)}
+                              {currencyFormatter.format(item.amount)}
                             </p>
                           </div>
                           <div className="home-block-item-meta-row">
                             <p className="home-block-item-meta">Vencimento: {item.dueDay ? String(item.dueDay).padStart(2, '0') : '--'}</p>
                             <p className="home-block-item-meta">{item.kind}</p>
-                            <span className={`status-pill ${item.status === 'paid' ? 'status-success' : 'status-pending'}`}>
-                              {item.status === 'paid' ? 'Paga' : 'Pendente'}
-                            </span>
                           </div>
-                          {item.kind === 'Despesa' ? (
-                            <div className="home-block-item-actions">
-                              {activePaymentEditorKey === item.id ? (
-                                <>
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    min="0.01"
-                                    value={paidAmountDraft}
-                                    onChange={(event) => setPaidAmountDraft(event.target.value)}
-                                    aria-label={`Valor pago de ${item.title}`}
-                                  />
-                                  <button
-                                    type="button"
-                                    disabled={isUpdatingOccurrenceKey === `obligation-${item.id}-${currentMonthKey}`}
-                                    onClick={() => void handleConfirmObligationPayment(item)}
-                                  >
-                                    {isUpdatingOccurrenceKey === `obligation-${item.id}-${currentMonthKey}`
-                                      ? 'Salvando...'
-                                      : 'Confirmar pagamento'}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setActivePaymentEditorKey(null);
-                                      setPaidAmountDraft('');
-                                    }}
-                                  >
-                                    Cancelar
-                                  </button>
-                                </>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenPaymentEditor(item.id, item.effectiveAmount)}
-                                >
-                                  {item.status === 'paid' ? 'Editar valor pago' : 'Marcar como paga'}
-                                </button>
-                              )}
-                            </div>
-                          ) : null}
                         </li>
                       ))}
                     </ul>
@@ -1773,16 +1795,11 @@ export default function HomePage() {
                     <p>Sem lançamentos no bloco 10.</p>
                   )}
                   <p className="home-block-mini-summary">
-                    Entradas: {currencyFormatter.format(currentMonthBlock10Summary.entries)} • Despesas:{' '}
-                    {currencyFormatter.format(currentMonthBlock10Summary.obligations)} • Saldo:{' '}
-                    <span
-                      className={`money-value ${getBalanceTone(
-                        currentMonthBlock10Summary.entries - currentMonthBlock10Summary.obligations
-                      )}`}
-                    >
-                      {currencyFormatter.format(currentMonthBlock10Summary.entries - currentMonthBlock10Summary.obligations)}
-                    </span>{' '}
-                    • Pagas: {currentMonthBlock10Summary.paidObligations} • Pendentes: {currentMonthBlock10Summary.pendingObligations}
+                    Entradas: {currencyFormatter.format(currentMonthProjection.block10.entries)} • Despesas:{' '}
+                    {currencyFormatter.format(currentMonthProjection.block10.obligations)} • Saldo:{' '}
+                    <span className={`money-value ${getBalanceTone(currentMonthProjection.block10.balance)}`}>
+                      {currencyFormatter.format(currentMonthProjection.block10.balance)}
+                    </span>
                   </p>
                 </details>
 
@@ -1797,57 +1814,13 @@ export default function HomePage() {
                           <div className="home-block-item-main-row">
                             <p className="home-block-item-title">{item.title}</p>
                             <p className={`home-block-item-value ${item.kind === 'Entrada' ? 'commitment-entry' : 'commitment-obligation'}`}>
-                              {currencyFormatter.format(item.effectiveAmount)}
+                              {currencyFormatter.format(item.amount)}
                             </p>
                           </div>
                           <div className="home-block-item-meta-row">
                             <p className="home-block-item-meta">Vencimento: {item.dueDay ? String(item.dueDay).padStart(2, '0') : '--'}</p>
                             <p className="home-block-item-meta">{item.kind}</p>
-                            <span className={`status-pill ${item.status === 'paid' ? 'status-success' : 'status-pending'}`}>
-                              {item.status === 'paid' ? 'Paga' : 'Pendente'}
-                            </span>
                           </div>
-                          {item.kind === 'Despesa' ? (
-                            <div className="home-block-item-actions">
-                              {activePaymentEditorKey === item.id ? (
-                                <>
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    min="0.01"
-                                    value={paidAmountDraft}
-                                    onChange={(event) => setPaidAmountDraft(event.target.value)}
-                                    aria-label={`Valor pago de ${item.title}`}
-                                  />
-                                  <button
-                                    type="button"
-                                    disabled={isUpdatingOccurrenceKey === `obligation-${item.id}-${currentMonthKey}`}
-                                    onClick={() => void handleConfirmObligationPayment(item)}
-                                  >
-                                    {isUpdatingOccurrenceKey === `obligation-${item.id}-${currentMonthKey}`
-                                      ? 'Salvando...'
-                                      : 'Confirmar pagamento'}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setActivePaymentEditorKey(null);
-                                      setPaidAmountDraft('');
-                                    }}
-                                  >
-                                    Cancelar
-                                  </button>
-                                </>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenPaymentEditor(item.id, item.effectiveAmount)}
-                                >
-                                  {item.status === 'paid' ? 'Editar valor pago' : 'Marcar como paga'}
-                                </button>
-                              )}
-                            </div>
-                          ) : null}
                         </li>
                       ))}
                     </ul>
@@ -1855,16 +1828,11 @@ export default function HomePage() {
                     <p>Sem lançamentos no bloco 25.</p>
                   )}
                   <p className="home-block-mini-summary">
-                    Entradas: {currencyFormatter.format(currentMonthBlock25Summary.entries)} • Despesas:{' '}
-                    {currencyFormatter.format(currentMonthBlock25Summary.obligations)} • Saldo:{' '}
-                    <span
-                      className={`money-value ${getBalanceTone(
-                        currentMonthBlock25Summary.entries - currentMonthBlock25Summary.obligations
-                      )}`}
-                    >
-                      {currencyFormatter.format(currentMonthBlock25Summary.entries - currentMonthBlock25Summary.obligations)}
-                    </span>{' '}
-                    • Pagas: {currentMonthBlock25Summary.paidObligations} • Pendentes: {currentMonthBlock25Summary.pendingObligations}
+                    Entradas: {currencyFormatter.format(currentMonthProjection.block25.entries)} • Despesas:{' '}
+                    {currencyFormatter.format(currentMonthProjection.block25.obligations)} • Saldo:{' '}
+                    <span className={`money-value ${getBalanceTone(currentMonthProjection.block25.balance)}`}>
+                      {currencyFormatter.format(currentMonthProjection.block25.balance)}
+                    </span>
                   </p>
                 </details>
               </section>
@@ -1872,20 +1840,39 @@ export default function HomePage() {
               <section className="home-month-total">
                 <h3>Total geral do mês</h3>
                 <p>
-                  Entradas: <span className="money-value">{currencyFormatter.format(currentMonthHomeSummary.entries)}</span>
+                  Entradas previstas: <span className="money-value">{currencyFormatter.format(currentMonthHomeSummary.entriesPlanned)}</span>
                 </p>
                 <p>
-                  Despesas:{' '}
-                  <span className="money-value">{currencyFormatter.format(currentMonthHomeSummary.obligations)}</span>
+                  Entradas recebidas:{' '}
+                  <span className="money-value">{currencyFormatter.format(currentMonthHomeSummary.entriesReceived)}</span>
                 </p>
                 <p>
-                  Saldo final:{' '}
-                  <span className={`money-value ${getBalanceTone(currentMonthHomeSummary.balance)}`}>
-                    {currencyFormatter.format(currentMonthHomeSummary.balance)}
+                  Entradas pendentes:{' '}
+                  <span className="money-value">{currencyFormatter.format(currentMonthHomeSummary.entriesPending)}</span>
+                </p>
+                <p>
+                  Despesas previstas:{' '}
+                  <span className="money-value">{currencyFormatter.format(currentMonthHomeSummary.obligationsPlanned)}</span>
+                </p>
+                <p>
+                  Despesas pagas:{' '}
+                  <span className="money-value">{currencyFormatter.format(currentMonthHomeSummary.obligationsPaid)}</span>
+                </p>
+                <p>
+                  Despesas pendentes:{' '}
+                  <span className="money-value">{currencyFormatter.format(currentMonthHomeSummary.obligationsPending)}</span>
+                </p>
+                <p>
+                  Saldo previsto:{' '}
+                  <span className={`money-value ${getBalanceTone(currentMonthHomeSummary.plannedBalance)}`}>
+                    {currencyFormatter.format(currentMonthHomeSummary.plannedBalance)}
                   </span>
                 </p>
                 <p>
-                  Despesas pagas: {currentMonthHomeSummary.paidObligations} • Pendentes: {currentMonthHomeSummary.pendingObligations}
+                  Saldo operacional:{' '}
+                  <span className={`money-value ${getBalanceTone(currentMonthHomeSummary.operationalBalance)}`}>
+                    {currencyFormatter.format(currentMonthHomeSummary.operationalBalance)}
+                  </span>
                 </p>
               </section>
             </>
