@@ -1106,6 +1106,206 @@ export default function HomePage() {
     await loadFinancialData(familyId);
   };
 
+  const currentMonthReferenceDate = useMemo(() => {
+    const [year, month] = currentMonthKey.split('-').map(Number);
+    return new Date(year, month - 1, 1);
+  }, [currentMonthKey]);
+
+  const currentMonthLabel = useMemo(() => {
+    const monthName = currentMonthReferenceDate.toLocaleDateString('pt-BR', { month: 'long' });
+    const formattedMonth = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+
+    return {
+      month: formattedMonth,
+      year: String(currentMonthReferenceDate.getFullYear())
+    };
+  }, [currentMonthReferenceDate]);
+
+  const currentMonthCommitments = useMemo(() => {
+    const entriesCommitments = entryList
+      .filter((entryItem) => doesEntryApplyToMonth(entryItem as EntryRow, currentMonthReferenceDate))
+      .map((entryItem) => {
+        const entryOccurrence = getOccurrence('entry', entryItem.id, currentMonthKey);
+        const entryStatus = getOccurrenceStatus('entry', entryItem.id, currentMonthKey);
+        const plannedAmount = Number(entryItem.amount);
+        const effectiveAmount =
+          entryStatus === 'received' && entryOccurrence ? Number(entryOccurrence.amount) : plannedAmount;
+
+        return {
+          id: entryItem.id,
+          title: entryItem.title,
+          amount: plannedAmount,
+          effectiveAmount,
+          dueDay: entryItem.due_day,
+          blockType: normalizeBlockType(entryItem.block_type),
+          kind: 'Entrada' as const,
+          status: entryStatus,
+          sourceType: 'entry' as const
+        };
+      });
+
+    const obligationsCommitments = obligationList
+      .filter((obligationItem) => doesObligationApplyToMonth(obligationItem as ObligationRow, currentMonthReferenceDate))
+      .map((obligationItem) => {
+        const obligationOccurrence = getOccurrence('obligation', obligationItem.id, currentMonthKey);
+        const obligationStatus = getOccurrenceStatus('obligation', obligationItem.id, currentMonthKey);
+        const plannedAmount = Number(obligationItem.amount);
+        const effectiveAmount =
+          obligationStatus === 'paid' && obligationOccurrence ? Number(obligationOccurrence.amount) : plannedAmount;
+
+        return {
+          id: obligationItem.id,
+          title: obligationItem.title,
+          amount: plannedAmount,
+          effectiveAmount,
+          dueDay: obligationItem.due_day,
+          blockType: normalizeBlockType(obligationItem.block_type),
+          kind: 'Despesa' as const,
+          status: obligationStatus,
+          sourceType: 'obligation' as const
+        };
+      });
+
+    return [...entriesCommitments, ...obligationsCommitments].sort((firstItem, secondItem) => {
+      const firstDueDay = firstItem.dueDay ?? 99;
+      const secondDueDay = secondItem.dueDay ?? 99;
+
+      if (firstDueDay !== secondDueDay) {
+        return firstDueDay - secondDueDay;
+      }
+
+      return firstItem.title.localeCompare(secondItem.title);
+    });
+  }, [entryList, obligationList, currentMonthReferenceDate, currentMonthKey, monthlyOccurrences, familyId]);
+
+  const currentMonthBlock10Items = useMemo(
+    () => currentMonthCommitments.filter((item) => item.blockType === '10'),
+    [currentMonthCommitments]
+  );
+
+  const currentMonthBlock25Items = useMemo(
+    () => currentMonthCommitments.filter((item) => item.blockType === '25'),
+    [currentMonthCommitments]
+  );
+
+  const getOperationalSummary = (items: typeof currentMonthCommitments) => {
+    return items.reduce(
+      (summary, item) => {
+        if (item.kind === 'Entrada') {
+          summary.entriesPlanned += item.amount;
+
+          if (item.status === 'received') {
+            summary.entriesReceived += item.effectiveAmount;
+          }
+
+          return summary;
+        }
+
+        summary.obligationsPlanned += item.amount;
+
+        if (item.status === 'paid') {
+          summary.obligationsPaid += item.effectiveAmount;
+        }
+
+        return summary;
+      },
+      {
+        entriesPlanned: 0,
+        entriesReceived: 0,
+        obligationsPlanned: 0,
+        obligationsPaid: 0
+      }
+    );
+  };
+
+
+  const currentMonthHomeSummary = useMemo(() => {
+    const mergedSummary = getOperationalSummary(currentMonthCommitments);
+    const entriesPending = mergedSummary.entriesPlanned - mergedSummary.entriesReceived;
+    const obligationsPending = mergedSummary.obligationsPlanned - mergedSummary.obligationsPaid;
+
+    return {
+      entriesPlanned: mergedSummary.entriesPlanned,
+      entriesReceived: mergedSummary.entriesReceived,
+      entriesPending,
+      obligationsPlanned: mergedSummary.obligationsPlanned,
+      obligationsPaid: mergedSummary.obligationsPaid,
+      obligationsPending,
+      plannedBalance: mergedSummary.entriesPlanned - mergedSummary.obligationsPlanned,
+      operationalBalance: mergedSummary.entriesReceived - mergedSummary.obligationsPaid
+    };
+  }, [currentMonthCommitments]);
+
+  const handleOpenCommitmentEditor = (
+    itemId: string,
+    defaultAmount: number,
+    targetStatus: 'received' | 'paid'
+  ) => {
+    setActiveCommitmentEditorKey(itemId);
+    setOperationAmountDraft(defaultAmount.toFixed(2));
+    setOperationStatusDraft(targetStatus);
+    setOpenCommitmentMenuKey(null);
+  };
+
+  const handleConfirmCommitmentOperation = async (item: (typeof currentMonthCommitments)[number]) => {
+    const parsedAmount = Number(operationAmountDraft);
+
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      setError('Informe um valor válido para confirmar.');
+      return;
+    }
+
+    await handleSetOccurrenceStatus(
+      item.sourceType,
+      item.id,
+      currentMonthKey,
+      item.title,
+      parsedAmount,
+      item.blockType,
+      operationStatusDraft
+    );
+
+    setActiveCommitmentEditorKey(null);
+    setOperationAmountDraft('');
+    setOperationStatusDraft('paid');
+  };
+
+  const handleUndoCommitmentOperation = async (item: (typeof currentMonthCommitments)[number]) => {
+    const normalizedSourceId = item.id.trim();
+    const normalizedMonthKey = normalizeMonthKey(currentMonthKey);
+    const sourceTypeForDatabase = toDatabaseSourceType(item.sourceType);
+
+    const { error: deleteOccurrenceError } = await supabase
+      .from('monthly_occurrences')
+      .delete()
+      .eq('family_id', familyId)
+      .eq('source_type', sourceTypeForDatabase)
+      .eq('source_id', normalizedSourceId)
+      .eq('month_key', normalizedMonthKey);
+
+    if (deleteOccurrenceError) {
+      setError('Não foi possível desfazer o status deste compromisso.');
+      return;
+    }
+
+    setMonthlyOccurrences((previous) =>
+      previous.filter(
+        (occurrence) =>
+          !(
+            occurrence.family_id === familyId &&
+            normalizeSourceType(occurrence.source_type) === item.sourceType &&
+            occurrence.source_id === normalizedSourceId &&
+            normalizeMonthKey(occurrence.month_key) === normalizedMonthKey
+          )
+      )
+    );
+
+    setOpenCommitmentMenuKey(null);
+    setActiveCommitmentEditorKey(null);
+    setOperationAmountDraft('');
+    await loadFinancialData(familyId);
+  };
+
   const monthPlannedVsActualByKey = useMemo(() => {
     const plannedVsActualMap = new Map<string, MonthPlannedVsActual>();
 
