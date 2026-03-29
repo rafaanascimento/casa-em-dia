@@ -121,8 +121,10 @@ type MonthRiskAnalysis = {
 };
 
 type DashboardSection = 'home' | 'lancamentos' | 'projecao' | 'perfil';
+type LaunchesView = 'entries' | 'obligations' | 'history';
 
-const PROJECTION_MONTHS = 6;
+const PROJECTION_MONTHS = 24;
+const HOME_MONTHS_BATCH_SIZE = 6;
 const MONTH_KEY_REGEX = /^(\d{4})-(\d{1,2})$/;
 const PROJECTION_VIEW_MODE_STORAGE_KEY = 'casa-em-dia:projection-view-mode';
 const EXPANDED_MONTH_KEYS_STORAGE_KEY = 'casa-em-dia:expanded-month-keys';
@@ -341,7 +343,7 @@ const getRiskBadgeLabel = (riskLevel: MonthRiskAnalysis['level']) => {
     return 'Atenção';
   }
 
-  return 'OK';
+  return 'Ok';
 };
 
 const normalizeSourceType = (sourceType: string) => {
@@ -382,6 +384,21 @@ const normalizeMonthKey = (monthKey: string) => {
   return `${year}-${month.padStart(2, '0')}`;
 };
 
+const normalizeBlockType = (blockType: unknown): '10' | '25' => {
+  if (blockType === 10 || blockType === '10') {
+    return '10';
+  }
+
+  return '25';
+};
+
+const sectionSubtitleBySection: Record<DashboardSection, string> = {
+  home: 'Resumo do mês com visão rápida da família.',
+  lancamentos: 'Cadastre e ajuste entradas e despesas com clareza.',
+  projecao: 'Acompanhe cenários futuros para planejar com segurança.',
+  perfil: 'Gerencie sua conta e preferências do app.'
+};
+
 export default function HomePage() {
   const router = useRouter();
 
@@ -398,6 +415,7 @@ export default function HomePage() {
   const [projectionViewMode, setProjectionViewMode] = useState<'monthly' | 'blocks'>('monthly');
   const [activeSection, setActiveSection] = useState<DashboardSection>('home');
   const [launchTarget, setLaunchTarget] = useState<'entry' | 'obligation' | null>(null);
+  const [launchesView, setLaunchesView] = useState<LaunchesView>('entries');
   const [isFabOpen, setIsFabOpen] = useState(false);
   const [entryForm, setEntryForm] = useState<EntryFormState>(initialEntryForm);
   const [obligationForm, setObligationForm] = useState<ObligationFormState>(initialObligationForm);
@@ -417,6 +435,12 @@ export default function HomePage() {
   const [error, setError] = useState('');
   const [entrySuccessMessage, setEntrySuccessMessage] = useState('');
   const [obligationSuccessMessage, setObligationSuccessMessage] = useState('');
+  const [activeCommitmentEditorKey, setActiveCommitmentEditorKey] = useState<string | null>(null);
+  const [openCommitmentMenuKey, setOpenCommitmentMenuKey] = useState<string | null>(null);
+  const [selectedHomeMonthKey, setSelectedHomeMonthKey] = useState<string | null>(null);
+  const [homeMonthsVisibleCount, setHomeMonthsVisibleCount] = useState(HOME_MONTHS_BATCH_SIZE);
+  const [operationAmountDraft, setOperationAmountDraft] = useState('');
+  const [operationStatusDraft, setOperationStatusDraft] = useState<'received' | 'paid'>('paid');
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -472,12 +496,19 @@ export default function HomePage() {
     }
 
     const targetId = launchTarget === 'entry' ? 'entry-create-section' : 'obligation-create-section';
-    const targetElement = document.getElementById(targetId);
+    setLaunchesView(launchTarget === 'entry' ? 'entries' : 'obligations');
 
-    if (targetElement) {
-      targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const frameId = window.requestAnimationFrame(() => {
+      const targetElement = document.getElementById(targetId);
+
+      if (targetElement) {
+        targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+
       setLaunchTarget(null);
-    }
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
   }, [activeSection, launchTarget]);
 
   const loadFinancialData = async (currentFamilyId: string) => {
@@ -524,16 +555,38 @@ export default function HomePage() {
       return;
     }
 
-    setEntries((entriesData ?? []) as EntryRow[]);
-    setObligations((obligationsData ?? []) as ObligationRow[]);
-    setEntryList((entriesListData ?? []) as EntryListRow[]);
-    setObligationList((obligationsListData ?? []) as ObligationListRow[]);
+    const normalizedEntries = ((entriesData ?? []) as EntryRow[]).map((entry) => ({
+      ...entry,
+      block_type: normalizeBlockType(entry.block_type)
+    }));
+
+    const normalizedObligations = ((obligationsData ?? []) as ObligationRow[]).map((obligation) => ({
+      ...obligation,
+      block_type: normalizeBlockType(obligation.block_type)
+    }));
+
+    const normalizedEntryList = ((entriesListData ?? []) as EntryListRow[]).map((entry) => ({
+      ...entry,
+      block_type: normalizeBlockType(entry.block_type)
+    }));
+
+    const normalizedObligationList = ((obligationsListData ?? []) as ObligationListRow[]).map((obligation) => ({
+      ...obligation,
+      block_type: normalizeBlockType(obligation.block_type)
+    }));
+
+    setEntries(normalizedEntries);
+    setObligations(normalizedObligations);
+    setEntryList(normalizedEntryList);
+    setObligationList(normalizedObligationList);
+
     const normalizedOccurrences = ((occurrencesData ?? []) as MonthlyOccurrenceRow[])
       .map((occurrence) => ({
         ...occurrence,
         source_type: normalizeSourceType(occurrence.source_type) as MonthlyOccurrenceRow['source_type'],
         month_key: normalizeMonthKey(occurrence.month_key),
-        source_id: occurrence.source_id.trim()
+        source_id: occurrence.source_id.trim(),
+        block_type: normalizeBlockType(occurrence.block_type)
       }))
       .filter((occurrence) => occurrence.source_type && occurrence.month_key && occurrence.source_id);
 
@@ -612,7 +665,7 @@ export default function HomePage() {
         const amount = Number(entry.amount);
         totalEntries += amount;
 
-        if (entry.block_type === '10') {
+        if (normalizeBlockType(entry.block_type) === '10') {
           block10Entries += amount;
         } else {
           block25Entries += amount;
@@ -629,7 +682,7 @@ export default function HomePage() {
         const amount = Number(obligation.amount);
         totalObligations += amount;
 
-        if (obligation.block_type === '10') {
+        if (normalizeBlockType(obligation.block_type) === '10') {
           block10Obligations += amount;
         } else {
           block25Obligations += amount;
@@ -655,6 +708,43 @@ export default function HomePage() {
       };
     });
   }, [entries, obligations]);
+
+
+  const launchHistoryItems = useMemo(
+    () =>
+      [
+        ...entryList.map((item) => ({
+          id: item.id,
+          title: item.title,
+          amount: Number(item.amount),
+          date: item.start_date,
+          typeLabel: 'Entrada',
+          blockType: normalizeBlockType(item.block_type),
+          isActive: item.is_active,
+          detailLabel: item.recurrence_type === 'monthly' ? 'Mensal' : 'Avulsa',
+          source: 'entry' as const,
+          originalItem: item
+        })),
+        ...obligationList.map((item) => ({
+          id: item.id,
+          title: item.title,
+          amount: Number(item.amount),
+          date: item.start_date,
+          typeLabel: 'Despesa',
+          blockType: normalizeBlockType(item.block_type),
+          isActive: item.is_active,
+          detailLabel:
+            item.type === 'parcelada' && item.total_installments
+              ? `Parcelada (${item.total_installments}x)`
+              : item.type === 'fixa'
+                ? 'Fixa'
+                : 'Única',
+          source: 'obligation' as const,
+          originalItem: item
+        }))
+      ].sort((firstItem, secondItem) => secondItem.date.localeCompare(firstItem.date)),
+    [entryList, obligationList]
+  );
 
   const nextMonthAlertsByKey = useMemo(() => {
     const alertsMap = new Map<string, string[]>();
@@ -753,10 +843,40 @@ export default function HomePage() {
   const getOccurrenceStatus = (sourceType: 'entry' | 'obligation', sourceId: string, monthKey: string) =>
     getOccurrence(sourceType, sourceId, monthKey)?.status ?? 'pending';
 
-  const currentMonthKey = useMemo(() => {
+  const systemCurrentMonthKey = useMemo(() => {
     const currentDate = new Date();
     return `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
   }, []);
+
+  useEffect(() => {
+    if (projection.length === 0) {
+      return;
+    }
+
+    const hasSelectedMonth = selectedHomeMonthKey
+      ? projection.some((month) => month.key === selectedHomeMonthKey)
+      : false;
+
+    if (hasSelectedMonth) {
+      return;
+    }
+
+    const defaultMonth =
+      projection.find((month) => month.key === systemCurrentMonthKey)?.key ?? projection[0]?.key ?? null;
+
+    setSelectedHomeMonthKey(defaultMonth);
+  }, [projection, selectedHomeMonthKey, systemCurrentMonthKey]);
+
+  useEffect(() => {
+    setHomeMonthsVisibleCount((previous) =>
+      Math.min(Math.max(previous, HOME_MONTHS_BATCH_SIZE), Math.max(projection.length, HOME_MONTHS_BATCH_SIZE))
+    );
+  }, [projection.length]);
+
+  const currentMonthKey = useMemo(
+    () => selectedHomeMonthKey ?? systemCurrentMonthKey,
+    [selectedHomeMonthKey, systemCurrentMonthKey]
+  );
 
   const greetingMessage = useMemo(() => {
     const currentHour = new Date().getHours();
@@ -772,56 +892,266 @@ export default function HomePage() {
     return 'Boa noite';
   }, []);
 
-  const currentMonthPendingMessages = useMemo(() => {
-    const currentMonthDetails = monthDetailsByKey.get(currentMonthKey);
-    const currentMonthEntries = currentMonthDetails?.entries ?? [];
-    const currentMonthObligations = currentMonthDetails?.obligations ?? [];
-
-    const hasPendingEntries = currentMonthEntries.some(
-      (entryItem) => getOccurrenceStatus('entry', entryItem.id, currentMonthKey) === 'pending'
-    );
-    const hasPendingObligations = currentMonthObligations.some(
-      (obligationItem) => getOccurrenceStatus('obligation', obligationItem.id, currentMonthKey) === 'pending'
-    );
-    const messages: string[] = [];
-
-    if (hasPendingEntries) {
-      messages.push('Você possui entradas não recebidas neste mês');
-    }
-
-    if (hasPendingObligations) {
-      messages.push('Você possui despesas não pagas neste mês');
-    }
-
-    if (hasPendingEntries || hasPendingObligations) {
-      messages.push('Existem pendências financeiras no mês atual');
-    }
-
-    return messages;
-  }, [monthDetailsByKey, currentMonthKey, monthlyOccurrences, familyId]);
-
   const currentMonthProjection = useMemo(
     () => projection.find((month) => month.key === currentMonthKey) ?? null,
     [projection, currentMonthKey]
   );
 
-  const currentMonthPendingSummary = useMemo(() => {
-    const currentMonthDetails = monthDetailsByKey.get(currentMonthKey);
-    const currentMonthEntries = currentMonthDetails?.entries ?? [];
-    const currentMonthObligations = currentMonthDetails?.obligations ?? [];
+  const currentMonthReferenceDate = useMemo(() => {
+    const [year, month] = currentMonthKey.split('-').map(Number);
+    return new Date(year, month - 1, 1);
+  }, [currentMonthKey]);
 
-    const pendingEntries = currentMonthEntries.filter(
-      (entryItem) => getOccurrenceStatus('entry', entryItem.id, currentMonthKey) === 'pending'
-    ).length;
-    const pendingObligations = currentMonthObligations.filter(
-      (obligationItem) => getOccurrenceStatus('obligation', obligationItem.id, currentMonthKey) === 'pending'
-    ).length;
+  const currentMonthLabel = useMemo(() => {
+    const monthName = currentMonthReferenceDate.toLocaleDateString('pt-BR', { month: 'long' });
+    const formattedMonth = monthName.charAt(0).toUpperCase() + monthName.slice(1);
 
     return {
-      pendingEntries,
-      pendingObligations
+      month: formattedMonth,
+      year: String(currentMonthReferenceDate.getFullYear())
     };
-  }, [monthDetailsByKey, currentMonthKey, monthlyOccurrences, familyId]);
+  }, [currentMonthReferenceDate]);
+
+  const homeMonths = useMemo(
+    () =>
+      projection.map((month) => {
+        const [year, monthNumber] = month.key.split('-');
+        const monthDate = new Date(Number(year), Number(monthNumber) - 1, 1);
+        const monthLabel = monthDate.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
+        const formattedMonthLabel = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1);
+
+        return {
+          key: month.key,
+          label: formattedMonthLabel,
+          year
+        };
+      }),
+    [projection]
+  );
+
+  const visibleHomeMonths = useMemo(
+    () => homeMonths.slice(0, homeMonthsVisibleCount),
+    [homeMonths, homeMonthsVisibleCount]
+  );
+
+  const hasMoreHomeMonths = homeMonthsVisibleCount < homeMonths.length;
+
+  const currentMonthCommitments = useMemo(() => {
+    const entriesCommitments = entryList
+      .filter((entryItem) => doesEntryApplyToMonth(entryItem as EntryRow, currentMonthReferenceDate))
+      .map((entryItem) => {
+        const entryOccurrence = getOccurrence('entry', entryItem.id, currentMonthKey);
+        const entryStatus = getOccurrenceStatus('entry', entryItem.id, currentMonthKey);
+        const plannedAmount = Number(entryItem.amount);
+        const effectiveAmount =
+          entryStatus === 'received' && entryOccurrence ? Number(entryOccurrence.amount) : plannedAmount;
+
+        return {
+          id: entryItem.id,
+          title: entryItem.title,
+          amount: plannedAmount,
+          effectiveAmount,
+          dueDay: entryItem.due_day,
+          blockType: normalizeBlockType(entryItem.block_type),
+          kind: 'Entrada' as const,
+          status: entryStatus,
+          sourceType: 'entry' as const
+        };
+      });
+
+    const obligationsCommitments = obligationList
+      .filter((obligationItem) => doesObligationApplyToMonth(obligationItem as ObligationRow, currentMonthReferenceDate))
+      .map((obligationItem) => {
+        const obligationOccurrence = getOccurrence('obligation', obligationItem.id, currentMonthKey);
+        const obligationStatus = getOccurrenceStatus('obligation', obligationItem.id, currentMonthKey);
+        const plannedAmount = Number(obligationItem.amount);
+        const effectiveAmount =
+          obligationStatus === 'paid' && obligationOccurrence ? Number(obligationOccurrence.amount) : plannedAmount;
+
+        return {
+          id: obligationItem.id,
+          title: obligationItem.title,
+          amount: plannedAmount,
+          effectiveAmount,
+          dueDay: obligationItem.due_day,
+          blockType: normalizeBlockType(obligationItem.block_type),
+          kind: 'Despesa' as const,
+          status: obligationStatus,
+          sourceType: 'obligation' as const
+        };
+      });
+
+    return [...entriesCommitments, ...obligationsCommitments].sort((firstItem, secondItem) => {
+      const firstDueDay = firstItem.dueDay ?? 99;
+      const secondDueDay = secondItem.dueDay ?? 99;
+
+      if (firstDueDay !== secondDueDay) {
+        return firstDueDay - secondDueDay;
+      }
+
+      return firstItem.title.localeCompare(secondItem.title);
+    });
+  }, [entryList, obligationList, currentMonthReferenceDate, currentMonthKey, monthlyOccurrences, familyId]);
+
+  const currentMonthBlock10Items = useMemo(
+    () => currentMonthCommitments.filter((item) => item.blockType === '10'),
+    [currentMonthCommitments]
+  );
+
+  const currentMonthBlock25Items = useMemo(
+    () => currentMonthCommitments.filter((item) => item.blockType === '25'),
+    [currentMonthCommitments]
+  );
+
+  const getOperationalSummary = (items: typeof currentMonthCommitments) => {
+    return items.reduce(
+      (summary, item) => {
+        if (item.kind === 'Entrada') {
+          summary.entriesPlanned += item.amount;
+
+          if (item.status === 'received') {
+            summary.entriesReceived += item.effectiveAmount;
+          }
+
+          return summary;
+        }
+
+        summary.obligationsPlanned += item.amount;
+
+        if (item.status === 'paid') {
+          summary.obligationsPaid += item.effectiveAmount;
+        }
+
+        return summary;
+      },
+      {
+        entriesPlanned: 0,
+        entriesReceived: 0,
+        obligationsPlanned: 0,
+        obligationsPaid: 0
+      }
+    );
+  };
+
+
+  const currentMonthHomeSummary = useMemo(() => {
+    const mergedSummary = getOperationalSummary(currentMonthCommitments);
+    const entriesPending = mergedSummary.entriesPlanned - mergedSummary.entriesReceived;
+    const obligationsPending = mergedSummary.obligationsPlanned - mergedSummary.obligationsPaid;
+
+    return {
+      entriesPlanned: mergedSummary.entriesPlanned,
+      entriesReceived: mergedSummary.entriesReceived,
+      entriesPending,
+      obligationsPlanned: mergedSummary.obligationsPlanned,
+      obligationsPaid: mergedSummary.obligationsPaid,
+      obligationsPending,
+      plannedBalance: mergedSummary.entriesPlanned - mergedSummary.obligationsPlanned,
+      operationalBalance: mergedSummary.entriesReceived - mergedSummary.obligationsPaid
+    };
+  }, [currentMonthCommitments]);
+
+  const handleOpenCommitmentEditor = (
+    itemId: string,
+    defaultAmount: number,
+    targetStatus: 'received' | 'paid'
+  ) => {
+    setActiveCommitmentEditorKey(itemId);
+    setOperationAmountDraft(defaultAmount.toFixed(2));
+    setOperationStatusDraft(targetStatus);
+    setOpenCommitmentMenuKey(null);
+  };
+
+  const handleConfirmCommitmentOperation = async (item: (typeof currentMonthCommitments)[number]) => {
+    const parsedAmount = Number(operationAmountDraft);
+
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      setError('Informe um valor válido para confirmar.');
+      return;
+    }
+
+    await handleSetOccurrenceStatus(
+      item.sourceType,
+      item.id,
+      currentMonthKey,
+      item.title,
+      parsedAmount,
+      item.blockType,
+      operationStatusDraft
+    );
+
+    setActiveCommitmentEditorKey(null);
+    setOperationAmountDraft('');
+    setOperationStatusDraft('paid');
+  };
+
+  const handleUndoCommitmentOperation = async (item: (typeof currentMonthCommitments)[number]) => {
+    const normalizedSourceId = item.id.trim();
+    const normalizedMonthKey = normalizeMonthKey(currentMonthKey);
+    const sourceTypeForDatabase = toDatabaseSourceType(item.sourceType);
+
+    const { error: deleteOccurrenceError } = await supabase
+      .from('monthly_occurrences')
+      .delete()
+      .eq('family_id', familyId)
+      .eq('source_type', sourceTypeForDatabase)
+      .eq('source_id', normalizedSourceId)
+      .eq('month_key', normalizedMonthKey);
+
+    if (deleteOccurrenceError) {
+      setError('Não foi possível desfazer o status deste compromisso.');
+      return;
+    }
+
+    setMonthlyOccurrences((previous) =>
+      previous.filter(
+        (occurrence) =>
+          !(
+            occurrence.family_id === familyId &&
+            normalizeSourceType(occurrence.source_type) === item.sourceType &&
+            occurrence.source_id === normalizedSourceId &&
+            normalizeMonthKey(occurrence.month_key) === normalizedMonthKey
+          )
+      )
+    );
+
+    setOpenCommitmentMenuKey(null);
+    setActiveCommitmentEditorKey(null);
+    setOperationAmountDraft('');
+    await loadFinancialData(familyId);
+  };
+
+  const handleResetSelectedMonth = async () => {
+    if (!familyId || !currentMonthKey) {
+      return;
+    }
+
+    const shouldReset = window.confirm(
+      'Isso vai apagar os registros mensais processados deste mês (pagos/recebidos) e limpar o acompanhamento do mês selecionado. Deseja continuar?'
+    );
+
+    if (!shouldReset) {
+      return;
+    }
+
+    const normalizedMonthKey = normalizeMonthKey(currentMonthKey);
+
+    const { error: deleteError } = await supabase
+      .from('monthly_occurrences')
+      .delete()
+      .eq('family_id', familyId)
+      .eq('month_key', normalizedMonthKey);
+
+    if (deleteError) {
+      setError('Não foi possível resetar a movimentação do mês selecionado.');
+      return;
+    }
+
+    setOpenCommitmentMenuKey(null);
+    setActiveCommitmentEditorKey(null);
+    setOperationAmountDraft('');
+    await loadFinancialData(familyId);
+  };
 
   const monthPlannedVsActualByKey = useMemo(() => {
     const plannedVsActualMap = new Map<string, MonthPlannedVsActual>();
@@ -854,7 +1184,8 @@ export default function HomePage() {
         const currentStatus = getOccurrenceStatus('obligation', obligationItem.id, month.key);
 
         if (currentStatus === 'paid') {
-          return total + Number(obligationItem.amount);
+          const paidOccurrence = getOccurrence('obligation', obligationItem.id, month.key);
+          return total + Number(paidOccurrence?.amount ?? obligationItem.amount);
         }
 
         return total;
@@ -1166,7 +1497,7 @@ export default function HomePage() {
       startDate: entryItem.start_date,
       endDate: entryItem.end_date ?? '',
       dueDay: entryItem.due_day ? String(entryItem.due_day) : '',
-      blockType: entryItem.block_type,
+      blockType: normalizeBlockType(entryItem.block_type),
       isActive: entryItem.is_active
     });
   };
@@ -1219,7 +1550,7 @@ export default function HomePage() {
       startDate: obligationItem.start_date,
       endDate: obligationItem.end_date ?? '',
       dueDay: obligationItem.due_day ? String(obligationItem.due_day) : '',
-      blockType: obligationItem.block_type,
+      blockType: normalizeBlockType(obligationItem.block_type),
       isActive: obligationItem.is_active
     });
   };
@@ -1399,1122 +1730,1358 @@ export default function HomePage() {
               {userEmail ? `, ${userEmail.split('@')[0]}` : ''}.
             </p>
             <h1 className="app-title">Casa em Dia</h1>
-            <p className="brand-subtitle">Seu painel financeiro familiar</p>
+            <p className="brand-subtitle">{sectionSubtitleBySection[activeSection]}</p>
           </div>
         </div>
       </header>
-      {activeSection === 'home' && currentMonthPendingMessages.length > 0 ? (
-        <section className="card pending-alerts">
-          <h2 className="pending-alerts-title">Pendências do mês atual</h2>
-          <ul className="pending-alerts-list">
-            {currentMonthPendingMessages.map((message) => (
-              <li key={message}>{message}</li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
       <div className="content-grid">
         {activeSection === 'home' ? (
         <>
-        <section className="card">
-          <h2>Painel do mês atual</h2>
+        <section className="card home-month-nav-card">
+          <div className="home-month-nav" role="tablist" aria-label="Selecionar mês exibido na Home">
+            {visibleHomeMonths.map((month) => {
+              const isSelected = month.key === currentMonthKey;
+
+              return (
+                <button
+                  key={`home-month-tab-${month.key}`}
+                  type="button"
+                  role="tab"
+                  aria-selected={isSelected}
+                  className={`home-month-tab ${isSelected ? 'is-selected' : ''}`}
+                  onClick={() => {
+                    setSelectedHomeMonthKey(month.key);
+                    setOpenCommitmentMenuKey(null);
+                    setActiveCommitmentEditorKey(null);
+                    setOperationAmountDraft('');
+                  }}
+                >
+                  <span>{month.label}</span>
+                  <small>{month.year}</small>
+                </button>
+              );
+            })}
+            {hasMoreHomeMonths ? (
+              <button
+                type="button"
+                className="home-month-tab home-month-tab-more"
+                onClick={() =>
+                  setHomeMonthsVisibleCount((previous) =>
+                    Math.min(previous + HOME_MONTHS_BATCH_SIZE, homeMonths.length)
+                  )
+                }
+              >
+                + meses
+              </button>
+            ) : null}
+          </div>
+          {familyId && currentMonthKey ? (
+            <div className="home-month-actions">
+              <button type="button" className="home-reset-month-button" onClick={() => void handleResetSelectedMonth()}>
+                Resetar mês
+              </button>
+            </div>
+          ) : null}
+        </section>
+        <section className="card home-main-card">
           {currentMonthProjection ? (
             <>
-              <p className="dashboard-month-label">
-                {currentMonthProjection.label}
+              <header className="home-month-header">
+                <p className="home-month-title">
+                  {currentMonthLabel.month} <span>{currentMonthLabel.year}</span>
+                </p>
                 <span className={`status-pill ${getRiskTone(currentMonthRisk.level)}`}>
                   {getRiskBadgeLabel(currentMonthRisk.level)}
                 </span>
-              </p>
-              <p>
-                Saldo do mês:{' '}
-                <span className={`money-value main-balance-value ${getBalanceTone(currentMonthProjection.balance)}`}>
-                  {currencyFormatter.format(currentMonthProjection.balance)}
-                </span>
-              </p>
-              <p>
-                Entradas do mês:{' '}
-                <span className="money-value">{currencyFormatter.format(currentMonthProjection.totalEntries)}</span>
-              </p>
-              <p>
-                Despesas do mês:{' '}
-                <span className="money-value">{currencyFormatter.format(currentMonthProjection.totalObligations)}</span>
-              </p>
-              <p>
-                Status do mês:{' '}
-                <span className={`status-pill ${getBalanceTone(currentMonthProjection.balance)}`}>
-                  {getMonthStatus(currentMonthProjection.balance)}
-                </span>
-              </p>
+              </header>
+
+              <section className="home-commitments">
+                <h3>Compromissos do mês</h3>
+                {currentMonthCommitments.length > 0 ? (
+                  <ul className="home-commitments-list">
+                    {currentMonthCommitments.map((item) => (
+                      <li
+                        key={`commitment-${item.kind}-${item.id}`}
+                        className={`home-commitment-item ${
+                          item.kind === 'Entrada' ? 'commitment-entry' : 'commitment-obligation'
+                        }`}
+                      >
+                        <div className="home-commitment-row-main">
+                          <p className="home-commitment-title">{item.title}</p>
+                          <div className="home-commitment-main-right">
+                            <p className="home-commitment-value">{currencyFormatter.format(item.effectiveAmount)}</p>
+                            <button
+                              type="button"
+                              className="home-commitment-menu-button"
+                              aria-label={`Abrir ações de ${item.title}`}
+                              onClick={() =>
+                                setOpenCommitmentMenuKey((previous) =>
+                                  previous === item.id ? null : item.id
+                                )
+                              }
+                            >
+                              ⋯
+                            </button>
+                          </div>
+                        </div>
+                        <div className="home-commitment-row-meta">
+                          <p className="home-commitment-meta">
+                            Vencimento: {item.dueDay ? String(item.dueDay).padStart(2, '0') : '--'}
+                          </p>
+                          <p className="home-commitment-meta">{item.kind}</p>
+                          <span
+                            className={`status-pill ${
+                              item.status === 'pending' ? 'status-pending' : 'status-success'
+                            }`}
+                          >
+                            {item.status === 'pending'
+                              ? item.kind === 'Entrada'
+                                ? 'A receber'
+                                : 'Pendente'
+                              : item.kind === 'Entrada'
+                                ? 'Recebida'
+                                : 'Paga'}
+                          </span>
+                        </div>
+
+                        {openCommitmentMenuKey === item.id ? (
+                          <div className="home-commitment-menu">
+                            <button
+                              type="button"
+                              className="home-commitment-action-button"
+                              onClick={() =>
+                                handleOpenCommitmentEditor(
+                                  item.id,
+                                  item.effectiveAmount,
+                                  item.kind === 'Entrada' ? 'received' : 'paid'
+                                )
+                              }
+                            >
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              className="home-commitment-action-button is-danger"
+                              disabled={item.status === 'pending'}
+                              onClick={() => void handleUndoCommitmentOperation(item)}
+                            >
+                              Excluir registro
+                            </button>
+                          </div>
+                        ) : null}
+
+                        {activeCommitmentEditorKey === item.id ? (
+                          <div className="home-commitment-editor">
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0.01"
+                              value={operationAmountDraft}
+                              onChange={(event) => setOperationAmountDraft(event.target.value)}
+                              aria-label={`Valor real de ${item.title}`}
+                            />
+                            <button
+                              type="button"
+                              disabled={
+                                isUpdatingOccurrenceKey === `${item.sourceType}-${item.id}-${currentMonthKey}`
+                              }
+                              onClick={() => void handleConfirmCommitmentOperation(item)}
+                            >
+                              {isUpdatingOccurrenceKey === `${item.sourceType}-${item.id}-${currentMonthKey}`
+                                ? 'Salvando...'
+                                : 'Salvar edição'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveCommitmentEditorKey(null);
+                                setOperationAmountDraft('');
+                              }}
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p>Sem compromissos ativos para este mês.</p>
+                )}
+              </section>
+
               <section className="current-month-blocks">
-                <h3>Blocos do mês atual</h3>
-                <div className="current-month-blocks-grid">
-                  <article className="month-block-card">
-                    <h4>📅 Bloco 10</h4>
-                    <p>Entradas: {currencyFormatter.format(currentMonthProjection.block10.entries)}</p>
-                    <p>Despesas: {currencyFormatter.format(currentMonthProjection.block10.obligations)}</p>
-                    <p>
-                      Saldo:{' '}
-                      <span className={`money-value ${getBalanceTone(currentMonthProjection.block10.balance)}`}>
-                        {currencyFormatter.format(currentMonthProjection.block10.balance)}
-                      </span>
-                    </p>
-                    <span className={`status-pill ${getBalanceTone(currentMonthProjection.block10.balance)}`}>
-                      {getBlockStatus(currentMonthProjection.block10.balance)}
+                <h3>Blocos do mês</h3>
+                <details className="home-block-details">
+                  <summary>
+                    Bloco 10 • {currentMonthBlock10Items.length} itens
+                  </summary>
+                  {currentMonthBlock10Items.length > 0 ? (
+                    <ul className="home-block-list">
+                      {currentMonthBlock10Items.map((item) => (
+                        <li key={`block10-${item.kind}-${item.id}`} className="home-block-list-item">
+                          <div className="home-block-item-main-row">
+                            <p className="home-block-item-title">{item.title}</p>
+                            <p className={`home-block-item-value ${item.kind === 'Entrada' ? 'commitment-entry' : 'commitment-obligation'}`}>
+                              {currencyFormatter.format(item.amount)}
+                            </p>
+                          </div>
+                          <div className="home-block-item-meta-row">
+                            <p className="home-block-item-meta">Vencimento: {item.dueDay ? String(item.dueDay).padStart(2, '0') : '--'}</p>
+                            <p className="home-block-item-meta">{item.kind}</p>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p>Sem lançamentos no bloco 10.</p>
+                  )}
+                  <p className="home-block-mini-summary">
+                    Entradas: {currencyFormatter.format(currentMonthProjection.block10.entries)} • Despesas:{' '}
+                    {currencyFormatter.format(currentMonthProjection.block10.obligations)} • Saldo:{' '}
+                    <span className={`money-value ${getBalanceTone(currentMonthProjection.block10.balance)}`}>
+                      {currencyFormatter.format(currentMonthProjection.block10.balance)}
                     </span>
-                  </article>
-                  <article className="month-block-card">
-                    <h4>💳 Bloco 25</h4>
-                    <p>Entradas: {currencyFormatter.format(currentMonthProjection.block25.entries)}</p>
-                    <p>Despesas: {currencyFormatter.format(currentMonthProjection.block25.obligations)}</p>
-                    <p>
-                      Saldo:{' '}
-                      <span className={`money-value ${getBalanceTone(currentMonthProjection.block25.balance)}`}>
-                        {currencyFormatter.format(currentMonthProjection.block25.balance)}
-                      </span>
-                    </p>
-                    <span className={`status-pill ${getBalanceTone(currentMonthProjection.block25.balance)}`}>
-                      {getBlockStatus(currentMonthProjection.block25.balance)}
-                    </span>
-                  </article>
-                </div>
-              </section>
-              <div className="section-separator" />
+                  </p>
+                </details>
 
-              <section>
-                <h3>Ação principal</h3>
-                <p>Use o botão flutuante + para registrar entrada ou despesa rapidamente.</p>
-              </section>
-              <div className="section-separator" />
-
-              <section>
-                <h3>Itens importantes do mês</h3>
-                <ul>
-                  <li>
-                    Entradas pendentes: <strong>{currentMonthPendingSummary.pendingEntries}</strong>
-                  </li>
-                  <li>
-                    Despesas pendentes: <strong>{currentMonthPendingSummary.pendingObligations}</strong>
-                  </li>
-                  <li>
-                    Saldo realizado parcial:{' '}
-                    <span className={`money-value ${getBalanceTone(currentMonthPlannedVsActual?.partialActualBalance ?? 0)}`}>
-                      {currencyFormatter.format(currentMonthPlannedVsActual?.partialActualBalance ?? 0)}
+                <details className="home-block-details">
+                  <summary>
+                    Bloco 25 • {currentMonthBlock25Items.length} itens
+                  </summary>
+                  {currentMonthBlock25Items.length > 0 ? (
+                    <ul className="home-block-list">
+                      {currentMonthBlock25Items.map((item) => (
+                        <li key={`block25-${item.kind}-${item.id}`} className="home-block-list-item">
+                          <div className="home-block-item-main-row">
+                            <p className="home-block-item-title">{item.title}</p>
+                            <p className={`home-block-item-value ${item.kind === 'Entrada' ? 'commitment-entry' : 'commitment-obligation'}`}>
+                              {currencyFormatter.format(item.amount)}
+                            </p>
+                          </div>
+                          <div className="home-block-item-meta-row">
+                            <p className="home-block-item-meta">Vencimento: {item.dueDay ? String(item.dueDay).padStart(2, '0') : '--'}</p>
+                            <p className="home-block-item-meta">{item.kind}</p>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p>Sem lançamentos no bloco 25.</p>
+                  )}
+                  <p className="home-block-mini-summary">
+                    Entradas: {currencyFormatter.format(currentMonthProjection.block25.entries)} • Despesas:{' '}
+                    {currencyFormatter.format(currentMonthProjection.block25.obligations)} • Saldo:{' '}
+                    <span className={`money-value ${getBalanceTone(currentMonthProjection.block25.balance)}`}>
+                      {currencyFormatter.format(currentMonthProjection.block25.balance)}
                     </span>
-                  </li>
-                </ul>
+                  </p>
+                </details>
+              </section>
+
+              <section className="home-month-total">
+                <h3>Total geral do mês</h3>
+                <p>
+                  Entradas previstas: <span className="money-value">{currencyFormatter.format(currentMonthHomeSummary.entriesPlanned)}</span>
+                </p>
+                <p>
+                  Entradas recebidas:{' '}
+                  <span className="money-value">{currencyFormatter.format(currentMonthHomeSummary.entriesReceived)}</span>
+                </p>
+                <p>
+                  Entradas pendentes:{' '}
+                  <span className="money-value">{currencyFormatter.format(currentMonthHomeSummary.entriesPending)}</span>
+                </p>
+                <p>
+                  Despesas previstas:{' '}
+                  <span className="money-value">{currencyFormatter.format(currentMonthHomeSummary.obligationsPlanned)}</span>
+                </p>
+                <p>
+                  Despesas pagas:{' '}
+                  <span className="money-value">{currencyFormatter.format(currentMonthHomeSummary.obligationsPaid)}</span>
+                </p>
+                <p>
+                  Despesas pendentes:{' '}
+                  <span className="money-value">{currencyFormatter.format(currentMonthHomeSummary.obligationsPending)}</span>
+                </p>
+                <p>
+                  Saldo previsto:{' '}
+                  <span className={`money-value ${getBalanceTone(currentMonthHomeSummary.plannedBalance)}`}>
+                    {currencyFormatter.format(currentMonthHomeSummary.plannedBalance)}
+                  </span>
+                </p>
+                <p>
+                  Saldo operacional:{' '}
+                  <span className={`money-value ${getBalanceTone(currentMonthHomeSummary.operationalBalance)}`}>
+                    {currencyFormatter.format(currentMonthHomeSummary.operationalBalance)}
+                  </span>
+                </p>
               </section>
             </>
           ) : (
             <p>Sem dados disponíveis para o mês atual.</p>
           )}
         </section>
-        <section className="card executive-card">
-          <h2>Resumo executivo</h2>
-          <p>
-            Situação do mês:{' '}
-            <span className={`status-pill ${getRiskTone(currentMonthRisk.level)}`}>
-              {getRiskBadgeLabel(currentMonthRisk.level)}
-            </span>
-          </p>
-          <ul>
-            {currentMonthRisk.messages.map((message) => (
-              <li key={`current-risk-${message}`}>{message}</li>
-            ))}
-          </ul>
-          <p>
-            Saldo planejado:{' '}
-            <span className={`money-value ${getBalanceTone(currentMonthPlannedVsActual?.plannedBalance ?? 0)}`}>
-              {currencyFormatter.format(currentMonthPlannedVsActual?.plannedBalance ?? 0)}
-            </span>
-          </p>
-          <p>
-            Saldo parcial realizado:{' '}
-            <span className={`money-value ${getBalanceTone(currentMonthPlannedVsActual?.partialActualBalance ?? 0)}`}>
-              {currencyFormatter.format(currentMonthPlannedVsActual?.partialActualBalance ?? 0)}
-            </span>
-          </p>
-        </section>
+        
         </>
         ) : null}
 
         {activeSection === 'projecao' ? (
-        <section className="card">
-        <h2>Projeção completa (secundária)</h2>
-        <p>Acompanhe os próximos meses quando precisar de uma visão detalhada.</p>
-        <details>
-          <summary>Expandir projeção mensal</summary>
-        <div className="button-row">
-          <button type="button" onClick={() => setProjectionViewMode('monthly')}>
-            Visão do mês
-          </button>
-          <button type="button" onClick={() => setProjectionViewMode('blocks')}>
-            Visão por blocos
-          </button>
-        </div>
+          <section className="card projection-section">
+            <h2>Projeção completa</h2>
+            <p>Acompanhe os próximos meses em uma leitura objetiva para celular.</p>
 
-        {isLoadingProjectionData ? <p>Carregando projeção...</p> : null}
+            <details>
+              <summary>Expandir projeção mensal</summary>
 
-        {!isLoadingProjectionData && projectionViewMode === 'monthly' ? (
-          <table>
-            <thead>
-              <tr>
-                <th>Mês</th>
-                <th>Entradas</th>
-                <th>Despesas</th>
-                <th>Saldo previsto</th>
-                <th>Alertas</th>
-              </tr>
-            </thead>
-            <tbody>
-              {projection.map((month) => (
-                <tr
-                  key={month.key}
-                  className={`${month.key === currentMonthKey ? 'is-current-month' : ''} ${
-                    monthRiskByKey.get(month.key)?.level === 'risco'
-                      ? 'is-risk-month'
-                      : monthRiskByKey.get(month.key)?.level === 'atenção'
-                        ? 'is-warning-month'
-                        : 'is-safe-month'
-                  }`}
-                >
-                  <td>
-                    {month.label}
-                    {month.key === currentMonthKey ? <span className="badge-current">Atual</span> : null}
-                    <span className={`status-pill ${getRiskTone(monthRiskByKey.get(month.key)?.level ?? 'seguro')}`}>
-                      {getRiskBadgeLabel(monthRiskByKey.get(month.key)?.level ?? 'seguro')}
-                    </span>
-                  </td>
-                  <td><span className="money-value">{currencyFormatter.format(month.totalEntries)}</span></td>
-                  <td><span className="money-value">{currencyFormatter.format(month.totalObligations)}</span></td>
-                  <td><span className={`money-value ${getBalanceTone(month.balance)}`}>{currencyFormatter.format(month.balance)}</span></td>
-                  <td>{getMonthAlerts(month).join(' • ') || 'Sem alertas'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : null}
+              <div className="button-row projection-view-toggle">
+                <button type="button" onClick={() => setProjectionViewMode('monthly')}>
+                  Visão mensal
+                </button>
+                <button type="button" onClick={() => setProjectionViewMode('blocks')}>
+                  Visão por blocos
+                </button>
+              </div>
 
-        {!isLoadingProjectionData && projectionViewMode === 'blocks' ? (
-          <table>
-            <thead>
-              <tr>
-                <th>Mês</th>
-                <th>Entradas bloco 10</th>
-                <th>Despesas bloco 10</th>
-                <th>Saldo bloco 10</th>
-                <th>Entradas bloco 25</th>
-                <th>Despesas bloco 25</th>
-                <th>Saldo bloco 25</th>
-                <th>Alertas</th>
-              </tr>
-            </thead>
-            <tbody>
-              {projection.map((month) => (
-                <tr
-                  key={month.key}
-                  className={`${month.key === currentMonthKey ? 'is-current-month' : ''} ${
-                    monthRiskByKey.get(month.key)?.level === 'risco'
-                      ? 'is-risk-month'
-                      : monthRiskByKey.get(month.key)?.level === 'atenção'
-                        ? 'is-warning-month'
-                        : 'is-safe-month'
-                  }`}
-                >
-                  <td>
-                    {month.label}
-                    {month.key === currentMonthKey ? <span className="badge-current">Atual</span> : null}
-                    <span className={`status-pill ${getRiskTone(monthRiskByKey.get(month.key)?.level ?? 'seguro')}`}>
-                      {getRiskBadgeLabel(monthRiskByKey.get(month.key)?.level ?? 'seguro')}
-                    </span>
-                  </td>
-                  <td><span className="money-value">{currencyFormatter.format(month.block10.entries)}</span></td>
-                  <td><span className="money-value">{currencyFormatter.format(month.block10.obligations)}</span></td>
-                  <td><span className={`money-value ${getBalanceTone(month.block10.balance)}`}>{currencyFormatter.format(month.block10.balance)}</span></td>
-                  <td><span className="money-value">{currencyFormatter.format(month.block25.entries)}</span></td>
-                  <td><span className="money-value">{currencyFormatter.format(month.block25.obligations)}</span></td>
-                  <td><span className={`money-value ${getBalanceTone(month.block25.balance)}`}>{currencyFormatter.format(month.block25.balance)}</span></td>
-                  <td>{getMonthAlerts(month).join(' • ') || 'Sem alertas'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : null}
+              {isLoadingProjectionData ? <p>Carregando projeção...</p> : null}
 
-        {!isLoadingProjectionData ? (
-          <section>
-            <h3>Resumos mensais</h3>
-            {projection.map((month) => {
-              const monthAlerts = getMonthAlerts(month);
-              const nextMonthAlerts = nextMonthAlertsByKey.get(month.key) ?? [];
-              const monthDetails = monthDetailsByKey.get(month.key);
-              const monthPlannedVsActual = monthPlannedVsActualByKey.get(month.key);
-              const monthRisk = monthRiskByKey.get(month.key);
-              const plannedBalance = monthPlannedVsActual?.plannedBalance ?? month.balance;
-              const partialActualBalance = monthPlannedVsActual?.partialActualBalance ?? 0;
-              const currentSituation = getCurrentMonthSituation(partialActualBalance, plannedBalance);
-              const expectedComparison = getExpectedComparison(partialActualBalance, plannedBalance);
+              {!isLoadingProjectionData ? (
+                <div className="projection-month-grid">
+                  {projection.map((month) => {
+                    const monthRisk = monthRiskByKey.get(month.key);
+                    const riskLevel = monthRisk?.level ?? 'seguro';
 
-              return (
-                <article
-                  key={`summary-${month.key}`}
-                  className={`month-summary ${
-                    monthRisk?.level === 'risco'
-                      ? 'month-summary-risk'
-                      : monthRisk?.level === 'atenção'
-                        ? 'month-summary-warning'
-                        : 'month-summary-safe'
-                  }`}
-                >
-                  <h4>
-                    {month.label}
-                    {month.key === currentMonthKey ? <span className="badge-current">Atual</span> : null}
-                    <span className={`status-pill ${getRiskTone(monthRisk?.level ?? 'seguro')}`}>
-                      {getRiskBadgeLabel(monthRisk?.level ?? 'seguro')}
-                    </span>
-                  </h4>
-                  <p>Total de entradas previstas: {currencyFormatter.format(month.totalEntries)}</p>
-                  <p>Total de despesas previstas: {currencyFormatter.format(month.totalObligations)}</p>
-                  <p>Saldo previsto: {currencyFormatter.format(month.balance)}</p>
-                  <p>Total do bloco 10: {currencyFormatter.format(month.block10.balance)}</p>
-                  <p>Total do bloco 25: {currencyFormatter.format(month.block25.balance)}</p>
-                  <p>
-                    Status do mês:{' '}
-                    <span className={`status-pill ${getBalanceTone(month.balance)}`}>{getMonthStatus(month.balance)}</span>
-                  </p>
-                  <p>
-                    Status bloco 10:{' '}
-                    <span className={`status-pill ${getBalanceTone(month.block10.balance)}`}>
-                      {getBlockStatus(month.block10.balance)}
-                    </span>
-                  </p>
-                  <p>
-                    Status bloco 25:{' '}
-                    <span className={`status-pill ${getBalanceTone(month.block25.balance)}`}>
-                      {getBlockStatus(month.block25.balance)}
-                    </span>
-                  </p>
-                  <p>Entradas previstas: {currencyFormatter.format(monthPlannedVsActual?.totalEntriesPlanned ?? 0)}</p>
-                  <p>Entradas recebidas: {currencyFormatter.format(monthPlannedVsActual?.totalEntriesReceived ?? 0)}</p>
-                  <p>Entradas pendentes: {currencyFormatter.format(monthPlannedVsActual?.totalEntriesPending ?? 0)}</p>
-                  <p>Despesas previstas: {currencyFormatter.format(monthPlannedVsActual?.totalObligationsPlanned ?? 0)}</p>
-                  <p>Despesas pagas: {currencyFormatter.format(monthPlannedVsActual?.totalObligationsPaid ?? 0)}</p>
-                  <p>Despesas pendentes: {currencyFormatter.format(monthPlannedVsActual?.totalObligationsPending ?? 0)}</p>
-                  <p>Saldo previsto: {currencyFormatter.format(monthPlannedVsActual?.plannedBalance ?? month.balance)}</p>
-                  <p>
-                    Saldo realizado parcial:{' '}
-                    {currencyFormatter.format(monthPlannedVsActual?.partialActualBalance ?? 0)}
-                  </p>
-                  <p>Leitura executiva:</p>
-                  <ul>
-                    <li>{currentSituation.message}</li>
-                    <li>{expectedComparison.message}</li>
-                  </ul>
-                  <p>
-                    Classificação de risco:{' '}
-                    <span className={`status-pill ${getRiskTone(monthRisk?.level ?? 'seguro')}`}>
-                      {monthRisk?.level ?? 'seguro'}
-                    </span>
-                  </p>
-                  <ul>
-                    {(monthRisk?.messages ?? ['Situação estável para este mês']).map((riskMessage) => (
-                      <li key={`${month.key}-risk-${riskMessage}`}>{riskMessage}</li>
-                    ))}
-                  </ul>
-                  <p>Alertas automáticos básicos:</p>
-                  <ul>
-                    {monthAlerts.length > 0 ? (
-                      monthAlerts.map((alert) => <li key={`${month.key}-${alert}`}>{alert}</li>)
-                    ) : (
-                      <li>Sem alertas para este mês.</li>
-                    )}
-                  </ul>
-                  <p>Mudanças para o próximo mês:</p>
-                  <ul>
-                    {nextMonthAlerts.length > 0 ? (
-                      nextMonthAlerts.map((alert) => (
-                        <li key={`${month.key}-next-${alert}`}>{alert}</li>
-                      ))
-                    ) : (
-                      <li>Sem mudanças relevantes para o próximo mês.</li>
-                    )}
-                  </ul>
-                  <details
-                    open={expandedMonthKeys.includes(month.key)}
-                    onToggle={(event) =>
-                      handleMonthDetailsToggle(
-                        month.key,
-                        (event.currentTarget as HTMLDetailsElement).open
-                      )
-                    }
-                  >
-                    <summary>Detalhamento do mês</summary>
+                    return (
+                      <article
+                        key={`projection-card-${month.key}`}
+                        className={`projection-month-card ${
+                          riskLevel === 'risco'
+                            ? 'projection-month-card-risk'
+                            : riskLevel === 'atenção'
+                              ? 'projection-month-card-warning'
+                              : 'projection-month-card-safe'
+                        }`}
+                      >
+                        <header className="projection-month-header">
+                          <p className="projection-month-title">
+                            {month.label}
+                            {month.key === systemCurrentMonthKey ? <span className="badge-current">Atual</span> : null}
+                          </p>
+                          <span className={`status-pill ${getRiskTone(riskLevel)}`}>
+                            {getRiskBadgeLabel(riskLevel)}
+                          </span>
+                        </header>
 
-                    <p>Entradas do mês:</p>
-                    <ul>
-                      {(monthDetails?.entries ?? []).length > 0 ? (
-                        (monthDetails?.entries ?? []).map((entryItem) => {
-                          const currentStatus = getOccurrenceStatus('entry', entryItem.id, month.key);
-                          const isReceived = currentStatus === 'received';
-                          const occurrenceKey = `entry-${entryItem.id}-${month.key}`;
-
-                          return (
-                            <li key={`${month.key}-entry-${entryItem.id}`}>
-                              {entryItem.title} — {currencyFormatter.format(Number(entryItem.amount))} (
-                              {entryItem.recurrence_type}, bloco {entryItem.block_type}) —{' '}
-                              <span className={`status-pill ${isReceived ? 'status-success' : 'status-pending'}`}>
-                                {isReceived ? 'Recebida' : 'Pendente'}
+                        {projectionViewMode === 'monthly' ? (
+                          <div className="projection-month-metrics">
+                            <p>
+                              Entradas:{' '}
+                              <span className="money-value">{currencyFormatter.format(month.totalEntries)}</span>
+                            </p>
+                            <p>
+                              Despesas:{' '}
+                              <span className="money-value">{currencyFormatter.format(month.totalObligations)}</span>
+                            </p>
+                            <p>
+                              Saldo previsto:{' '}
+                              <span className={`money-value ${getBalanceTone(month.balance)}`}>
+                                {currencyFormatter.format(month.balance)}
                               </span>
-                              <button
-                                type="button"
-                                disabled={isReceived || isUpdatingOccurrenceKey === occurrenceKey}
-                                onClick={() =>
-                                  handleSetOccurrenceStatus(
-                                    'entry',
-                                    entryItem.id,
-                                    month.key,
-                                    entryItem.title,
-                                    Number(entryItem.amount),
-                                    entryItem.block_type,
-                                    'received'
-                                  )
-                                }
-                              >
-                                {isUpdatingOccurrenceKey === occurrenceKey
-                                  ? 'Salvando...'
-                                  : 'Marcar como recebida'}
-                              </button>
-                            </li>
-                          );
-                        })
-                      ) : (
-                        <li>Sem entradas neste mês.</li>
-                      )}
-                    </ul>
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="projection-blocks-grid">
+                            <article className="projection-block-card">
+                              <h4>Bloco 10</h4>
+                              <p>Entradas: {currencyFormatter.format(month.block10.entries)}</p>
+                              <p>Despesas: {currencyFormatter.format(month.block10.obligations)}</p>
+                              <p>
+                                Saldo:{' '}
+                                <span className={`money-value ${getBalanceTone(month.block10.balance)}`}>
+                                  {currencyFormatter.format(month.block10.balance)}
+                                </span>
+                              </p>
+                            </article>
+                            <article className="projection-block-card">
+                              <h4>Bloco 25</h4>
+                              <p>Entradas: {currencyFormatter.format(month.block25.entries)}</p>
+                              <p>Despesas: {currencyFormatter.format(month.block25.obligations)}</p>
+                              <p>
+                                Saldo:{' '}
+                                <span className={`money-value ${getBalanceTone(month.block25.balance)}`}>
+                                  {currencyFormatter.format(month.block25.balance)}
+                                </span>
+                              </p>
+                            </article>
+                          </div>
+                        )}
 
-                    <p>Despesas do mês:</p>
-                    <ul>
-                      {(monthDetails?.obligations ?? []).length > 0 ? (
-                        (monthDetails?.obligations ?? []).map((obligationItem) => {
-                          const currentStatus = getOccurrenceStatus('obligation', obligationItem.id, month.key);
-                          const isPaid = currentStatus === 'paid';
-                          const occurrenceKey = `obligation-${obligationItem.id}-${month.key}`;
-
-                          return (
-                            <li key={`${month.key}-obligation-${obligationItem.id}`}>
-                              {obligationItem.title} — {currencyFormatter.format(Number(obligationItem.amount))} (
-                              {obligationItem.type}
-                              {obligationItem.type === 'parcelada' && obligationItem.total_installments
-                                ? `, parcelada em ${obligationItem.total_installments}x`
-                                : ''}
-                              , bloco {obligationItem.block_type}) —{' '}
-                              <span className={`status-pill ${isPaid ? 'status-success' : 'status-pending'}`}>
-                                {isPaid ? 'Paga' : 'Pendente'}
-                              </span>
-                              <button
-                                type="button"
-                                disabled={isPaid || isUpdatingOccurrenceKey === occurrenceKey}
-                                onClick={() =>
-                                  handleSetOccurrenceStatus(
-                                    'obligation',
-                                    obligationItem.id,
-                                    month.key,
-                                    obligationItem.title,
-                                    Number(obligationItem.amount),
-                                    obligationItem.block_type,
-                                    'paid'
-                                  )
-                                }
-                              >
-                                {isUpdatingOccurrenceKey === occurrenceKey
-                                  ? 'Salvando...'
-                                  : 'Marcar como paga'}
-                              </button>
-                            </li>
-                          );
-                        })
-                      ) : (
-                        <li>Sem despesas neste mês.</li>
-                      )}
-                    </ul>
-
-                    <p>Totais do mês:</p>
-                    <p>Entradas: {currencyFormatter.format(month.totalEntries)}</p>
-                    <p>Despesas: {currencyFormatter.format(month.totalObligations)}</p>
-                    <p>Saldo: {currencyFormatter.format(month.balance)}</p>
-                  </details>
-                </article>
-              );
-            })}
-          </section>
-        ) : null}
-        </details>
-        </section>
-        ) : null}
-
-        {activeSection === 'lancamentos' ? (
-        <>
-        <section className="card" id="entry-create-section">
-        <h2>Cadastrar entrada</h2>
-        <form className="modern-form" onSubmit={handleCreateEntry}>
-          <div className="form-block">
-            <p className="form-block-title">Informações principais</p>
-            <div className="form-grid">
-            <div>
-            <label htmlFor="entryTitle">Título</label>
-            <input
-              id="entryTitle"
-              type="text"
-              value={entryForm.title}
-              onChange={(event) => setEntryForm({ ...entryForm, title: event.target.value })}
-              required
-            />
-          </div>
-
-          <div>
-            <label htmlFor="entryAmount">Valor (R$)</label>
-            <input
-              id="entryAmount"
-              type="number"
-              step="0.01"
-              min="0.01"
-              value={entryForm.amount}
-              onChange={(event) => setEntryForm({ ...entryForm, amount: event.target.value })}
-              required
-            />
-          </div>
-          </div>
-          </div>
-
-          <div className="form-block">
-            <p className="form-block-title">Recorrência e período</p>
-            <div className="form-grid">
-            <div>
-            <label htmlFor="entryRecurrenceType">Recorrência</label>
-            <select
-              id="entryRecurrenceType"
-              value={entryForm.recurrenceType}
-              onChange={(event) =>
-                setEntryForm({
-                  ...entryForm,
-                  recurrenceType: event.target.value as EntryFormState['recurrenceType']
-                })
-              }
-            >
-              <option value="monthly">Mensal</option>
-              <option value="one_time">Avulsa</option>
-            </select>
-          </div>
-
-          <div>
-            <label htmlFor="entryStartDate">Início</label>
-            <input
-              id="entryStartDate"
-              type="date"
-              value={entryForm.startDate}
-              onChange={(event) => setEntryForm({ ...entryForm, startDate: event.target.value })}
-              required
-            />
-          </div>
-
-          <div>
-            <label htmlFor="entryEndDate">Fim (opcional)</label>
-            <input
-              id="entryEndDate"
-              type="date"
-              value={entryForm.endDate}
-              onChange={(event) => setEntryForm({ ...entryForm, endDate: event.target.value })}
-            />
-          </div>
-          </div>
-          </div>
-
-          <div className="form-block">
-            <p className="form-block-title">Organização</p>
-            <div className="form-grid">
-          <div>
-            <label htmlFor="entryDueDay">Dia de vencimento</label>
-            <input
-              id="entryDueDay"
-              type="number"
-              min="1"
-              max="31"
-              value={entryForm.dueDay}
-              onChange={(event) => setEntryForm({ ...entryForm, dueDay: event.target.value })}
-              required
-            />
-          </div>
-
-          <div>
-            <label htmlFor="entryBlockType">Bloco financeiro</label>
-            <select
-              id="entryBlockType"
-              value={entryForm.blockType}
-              onChange={(event) =>
-                setEntryForm({
-                  ...entryForm,
-                  blockType: event.target.value as EntryFormState['blockType']
-                })
-              }
-            >
-              <option value="10">10</option>
-              <option value="25">25</option>
-            </select>
-          </div>
-          </div>
-          </div>
-
-          <div className="form-inline-toggle">
-            <label htmlFor="entryIsActive">Ativo</label>
-            <input
-              id="entryIsActive"
-              type="checkbox"
-              checked={entryForm.isActive}
-              onChange={(event) => setEntryForm({ ...entryForm, isActive: event.target.checked })}
-            />
-          </div>
-
-          <button type="submit" disabled={isSavingEntry}>
-            {isSavingEntry ? 'Salvando entrada...' : 'Salvar entrada'}
-          </button>
-        </form>
-        {entrySuccessMessage ? <p>{entrySuccessMessage}</p> : null}
-        </section>
-
-        <section className="card" id="obligation-create-section">
-        <h2>Cadastrar despesa</h2>
-        <form className="modern-form" onSubmit={handleCreateObligation}>
-          <div className="form-block">
-            <p className="form-block-title">Informações principais</p>
-            <div className="form-grid">
-          <div>
-            <label htmlFor="obligationTitle">Título</label>
-            <input
-              id="obligationTitle"
-              type="text"
-              value={obligationForm.title}
-              onChange={(event) =>
-                setObligationForm({ ...obligationForm, title: event.target.value })
-              }
-              required
-            />
-          </div>
-
-          <div>
-            <label htmlFor="obligationAmount">Valor (R$)</label>
-            <input
-              id="obligationAmount"
-              type="number"
-              step="0.01"
-              min="0.01"
-              value={obligationForm.amount}
-              onChange={(event) =>
-                setObligationForm({ ...obligationForm, amount: event.target.value })
-              }
-              required
-            />
-          </div>
-          </div>
-          </div>
-
-          <div className="form-block">
-            <p className="form-block-title">Tipo e recorrência</p>
-            <div className="form-grid">
-          <div>
-            <label htmlFor="obligationType">Tipo</label>
-            <select
-              id="obligationType"
-              value={obligationForm.type}
-              onChange={(event) =>
-                setObligationForm({
-                  ...obligationForm,
-                  type: event.target.value as ObligationFormState['type'],
-                  totalInstallments: event.target.value === 'parcelada' ? obligationForm.totalInstallments : ''
-                })
-              }
-            >
-              <option value="fixa">Fixa</option>
-              <option value="unica">Única</option>
-              <option value="parcelada">Parcelada</option>
-            </select>
-          </div>
-
-          {obligationForm.type === 'parcelada' ? (
-            <div>
-              <label htmlFor="obligationInstallments">Total de parcelas</label>
-              <input
-                id="obligationInstallments"
-                type="number"
-                min="1"
-                value={obligationForm.totalInstallments}
-                onChange={(event) =>
-                  setObligationForm({ ...obligationForm, totalInstallments: event.target.value })
-                }
-                required
-              />
-            </div>
-          ) : null}
-
-          <div>
-            <label htmlFor="obligationRecurrenceType">Recorrência</label>
-            <select
-              id="obligationRecurrenceType"
-              value={obligationForm.recurrenceType}
-              onChange={(event) =>
-                setObligationForm({
-                  ...obligationForm,
-                  recurrenceType: event.target.value as ObligationFormState['recurrenceType']
-                })
-              }
-            >
-              <option value="monthly">Mensal</option>
-              <option value="one_time">Avulsa</option>
-            </select>
-          </div>
-          </div>
-          </div>
-
-          <div className="form-block">
-            <p className="form-block-title">Período e organização</p>
-            <div className="form-grid">
-          <div>
-            <label htmlFor="obligationStartDate">Início</label>
-            <input
-              id="obligationStartDate"
-              type="date"
-              value={obligationForm.startDate}
-              onChange={(event) =>
-                setObligationForm({ ...obligationForm, startDate: event.target.value })
-              }
-              required
-            />
-          </div>
-
-          <div>
-            <label htmlFor="obligationEndDate">Fim (opcional)</label>
-            <input
-              id="obligationEndDate"
-              type="date"
-              value={obligationForm.endDate}
-              onChange={(event) => setObligationForm({ ...obligationForm, endDate: event.target.value })}
-            />
-          </div>
-
-          <div>
-            <label htmlFor="obligationDueDay">Dia de vencimento</label>
-            <input
-              id="obligationDueDay"
-              type="number"
-              min="1"
-              max="31"
-              value={obligationForm.dueDay}
-              onChange={(event) => setObligationForm({ ...obligationForm, dueDay: event.target.value })}
-              required
-            />
-          </div>
-
-          <div>
-            <label htmlFor="obligationBlockType">Bloco financeiro</label>
-            <select
-              id="obligationBlockType"
-              value={obligationForm.blockType}
-              onChange={(event) =>
-                setObligationForm({
-                  ...obligationForm,
-                  blockType: event.target.value as ObligationFormState['blockType']
-                })
-              }
-            >
-              <option value="10">10</option>
-              <option value="25">25</option>
-            </select>
-          </div>
-          </div>
-          </div>
-
-          <div className="form-inline-toggle">
-            <label htmlFor="obligationIsActive">Ativo</label>
-            <input
-              id="obligationIsActive"
-              type="checkbox"
-              checked={obligationForm.isActive}
-              onChange={(event) =>
-                setObligationForm({ ...obligationForm, isActive: event.target.checked })
-              }
-            />
-          </div>
-
-          <button type="submit" disabled={isSavingObligation}>
-            {isSavingObligation ? 'Salvando despesa...' : 'Salvar despesa'}
-          </button>
-        </form>
-        {obligationSuccessMessage ? <p>{obligationSuccessMessage}</p> : null}
-        </section>
-
-        <section>
-          <h2>Entradas cadastradas</h2>
-          {editingEntryId ? (
-            <form onSubmit={handleUpdateEntry}>
-              <h3>Editar entrada</h3>
-              <div>
-                <label htmlFor="editEntryTitle">Título</label>
-                <input
-                  id="editEntryTitle"
-                  type="text"
-                  value={editingEntryForm.title}
-                  onChange={(event) =>
-                    setEditingEntryForm({ ...editingEntryForm, title: event.target.value })
-                  }
-                  required
-                />
-              </div>
-
-              <div>
-                <label htmlFor="editEntryAmount">Valor</label>
-                <input
-                  id="editEntryAmount"
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  value={editingEntryForm.amount}
-                  onChange={(event) =>
-                    setEditingEntryForm({ ...editingEntryForm, amount: event.target.value })
-                  }
-                  required
-                />
-              </div>
-
-              <div>
-                <label htmlFor="editEntryRecurrenceType">Recorrência</label>
-                <select
-                  id="editEntryRecurrenceType"
-                  value={editingEntryForm.recurrenceType}
-                  onChange={(event) =>
-                    setEditingEntryForm({
-                      ...editingEntryForm,
-                      recurrenceType: event.target.value as EntryFormState['recurrenceType']
-                    })
-                  }
-                >
-                  <option value="monthly">Mensal</option>
-                  <option value="one_time">Avulsa</option>
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="editEntryStartDate">Data inicial</label>
-                <input
-                  id="editEntryStartDate"
-                  type="date"
-                  value={editingEntryForm.startDate}
-                  onChange={(event) =>
-                    setEditingEntryForm({ ...editingEntryForm, startDate: event.target.value })
-                  }
-                  required
-                />
-              </div>
-
-              <div>
-                <label htmlFor="editEntryEndDate">Data final</label>
-                <input
-                  id="editEntryEndDate"
-                  type="date"
-                  value={editingEntryForm.endDate}
-                  onChange={(event) =>
-                    setEditingEntryForm({ ...editingEntryForm, endDate: event.target.value })
-                  }
-                />
-              </div>
-
-              <div>
-                <label htmlFor="editEntryDueDay">Dia de vencimento</label>
-                <input
-                  id="editEntryDueDay"
-                  type="number"
-                  min="1"
-                  max="31"
-                  value={editingEntryForm.dueDay}
-                  onChange={(event) =>
-                    setEditingEntryForm({ ...editingEntryForm, dueDay: event.target.value })
-                  }
-                  required
-                />
-              </div>
-
-              <div>
-                <label htmlFor="editEntryBlockType">Bloco</label>
-                <select
-                  id="editEntryBlockType"
-                  value={editingEntryForm.blockType}
-                  onChange={(event) =>
-                    setEditingEntryForm({
-                      ...editingEntryForm,
-                      blockType: event.target.value as EntryFormState['blockType']
-                    })
-                  }
-                >
-                  <option value="10">10</option>
-                  <option value="25">25</option>
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="editEntryIsActive">Ativo</label>
-                <input
-                  id="editEntryIsActive"
-                  type="checkbox"
-                  checked={editingEntryForm.isActive}
-                  onChange={(event) =>
-                    setEditingEntryForm({ ...editingEntryForm, isActive: event.target.checked })
-                  }
-                />
-              </div>
-
-              <button type="submit" disabled={isUpdatingEntry}>
-                {isUpdatingEntry ? 'Atualizando...' : 'Salvar entrada'}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingEntryId(null);
-                  setEditingEntryForm(initialEntryForm);
-                }}
-              >
-                Cancelar
-              </button>
-            </form>
-          ) : null}
-          <div className="mobile-list-grid">
-            {entryList.map((entryItem, index) => (
-              <article key={`${entryItem.title}-${entryItem.start_date}-${entryItem.amount}-${index}`} className="mobile-list-card">
-                <p className="mobile-list-title">{entryItem.title}</p>
-                <p className="mobile-list-value">{currencyFormatter.format(Number(entryItem.amount))}</p>
-                <p>Tipo: Entrada</p>
-                <p>Data: {entryItem.start_date}</p>
-                <p>Bloco financeiro: {entryItem.block_type}</p>
-                <p>Status: {entryItem.is_active ? 'Ativo' : 'Inativo'}</p>
-                <div className="button-row">
-                  <button type="button" onClick={() => handleStartEditEntry(entryItem)}>
-                    Editar
-                  </button>
-                  <button type="button" onClick={() => handleDeleteEntry(entryItem.id)}>
-                    Excluir
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section>
-          <h2>Despesas cadastradas</h2>
-          {editingObligationId ? (
-            <form onSubmit={handleUpdateObligation}>
-              <h3>Editar despesa</h3>
-              <div>
-                <label htmlFor="editObligationTitle">Título</label>
-                <input
-                  id="editObligationTitle"
-                  type="text"
-                  value={editingObligationForm.title}
-                  onChange={(event) =>
-                    setEditingObligationForm({ ...editingObligationForm, title: event.target.value })
-                  }
-                  required
-                />
-              </div>
-
-              <div>
-                <label htmlFor="editObligationAmount">Valor</label>
-                <input
-                  id="editObligationAmount"
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  value={editingObligationForm.amount}
-                  onChange={(event) =>
-                    setEditingObligationForm({ ...editingObligationForm, amount: event.target.value })
-                  }
-                  required
-                />
-              </div>
-
-              <div>
-                <label htmlFor="editObligationType">Tipo</label>
-                <select
-                  id="editObligationType"
-                  value={editingObligationForm.type}
-                  onChange={(event) =>
-                    setEditingObligationForm({
-                      ...editingObligationForm,
-                      type: event.target.value as ObligationFormState['type'],
-                      totalInstallments:
-                        event.target.value === 'parcelada' ? editingObligationForm.totalInstallments : ''
-                    })
-                  }
-                >
-                  <option value="fixa">Fixa</option>
-                  <option value="unica">Única</option>
-                  <option value="parcelada">Parcelada</option>
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="editObligationRecurrenceType">Recorrência</label>
-                <select
-                  id="editObligationRecurrenceType"
-                  value={editingObligationForm.recurrenceType}
-                  onChange={(event) =>
-                    setEditingObligationForm({
-                      ...editingObligationForm,
-                      recurrenceType: event.target.value as ObligationFormState['recurrenceType']
-                    })
-                  }
-                >
-                  <option value="monthly">Mensal</option>
-                  <option value="one_time">Avulsa</option>
-                </select>
-              </div>
-
-              {editingObligationForm.type === 'parcelada' ? (
-                <div>
-                  <label htmlFor="editObligationInstallments">Total de parcelas</label>
-                  <input
-                    id="editObligationInstallments"
-                    type="number"
-                    min="1"
-                    value={editingObligationForm.totalInstallments}
-                    onChange={(event) =>
-                      setEditingObligationForm({
-                        ...editingObligationForm,
-                        totalInstallments: event.target.value
-                      })
-                    }
-                    required
-                  />
+                        <p className="projection-month-alerts">{getMonthAlerts(month).join(' • ') || 'Sem alertas'}</p>
+                      </article>
+                    );
+                  })}
                 </div>
               ) : null}
 
-              <div>
-                <label htmlFor="editObligationStartDate">Data inicial</label>
-                <input
-                  id="editObligationStartDate"
-                  type="date"
-                  value={editingObligationForm.startDate}
-                  onChange={(event) =>
-                    setEditingObligationForm({ ...editingObligationForm, startDate: event.target.value })
-                  }
-                  required
-                />
-              </div>
+              {!isLoadingProjectionData ? (
+                <section>
+                  <h3>Resumos mensais</h3>
+                  {projection.map((month) => {
+                    const monthAlerts = getMonthAlerts(month);
+                    const nextMonthAlerts = nextMonthAlertsByKey.get(month.key) ?? [];
+                    const monthDetails = monthDetailsByKey.get(month.key);
+                    const monthPlannedVsActual = monthPlannedVsActualByKey.get(month.key);
+                    const monthRisk = monthRiskByKey.get(month.key);
+                    const plannedBalance = monthPlannedVsActual?.plannedBalance ?? month.balance;
+                    const partialActualBalance = monthPlannedVsActual?.partialActualBalance ?? 0;
+                    const currentSituation = getCurrentMonthSituation(partialActualBalance, plannedBalance);
+                    const expectedComparison = getExpectedComparison(partialActualBalance, plannedBalance);
 
-              <div>
-                <label htmlFor="editObligationEndDate">Data final</label>
-                <input
-                  id="editObligationEndDate"
-                  type="date"
-                  value={editingObligationForm.endDate}
-                  onChange={(event) =>
-                    setEditingObligationForm({ ...editingObligationForm, endDate: event.target.value })
-                  }
-                />
-              </div>
+                    return (
+                      <article
+                        key={`summary-${month.key}`}
+                        className={`month-summary ${
+                          monthRisk?.level === 'risco'
+                            ? 'month-summary-risk'
+                            : monthRisk?.level === 'atenção'
+                              ? 'month-summary-warning'
+                              : 'month-summary-safe'
+                        }`}
+                      >
+                        <header className="month-summary-header">
+                          <h4>
+                            {month.label}
+                            {month.key === systemCurrentMonthKey ? <span className="badge-current">Atual</span> : null}
+                          </h4>
+                          <span className={`status-pill ${getRiskTone(monthRisk?.level ?? 'seguro')}`}>
+                            {getRiskBadgeLabel(monthRisk?.level ?? 'seguro')}
+                          </span>
+                        </header>
 
-              <div>
-                <label htmlFor="editObligationDueDay">Dia de vencimento</label>
-                <input
-                  id="editObligationDueDay"
-                  type="number"
-                  min="1"
-                  max="31"
-                  value={editingObligationForm.dueDay}
-                  onChange={(event) =>
-                    setEditingObligationForm({ ...editingObligationForm, dueDay: event.target.value })
-                  }
-                  required
-                />
-              </div>
+                        <div className="month-summary-groups month-summary-groups-primary">
+                          <section className="month-summary-group">
+                            <h5>Visão geral</h5>
+                            <p>Entradas: {currencyFormatter.format(month.totalEntries)}</p>
+                            <p>Despesas: {currencyFormatter.format(month.totalObligations)}</p>
+                            <p>Saldo previsto: {currencyFormatter.format(month.balance)}</p>
+                            <p>
+                              Status do mês:{' '}
+                              <span className={`status-pill ${getBalanceTone(month.balance)}`}>{getMonthStatus(month.balance)}</span>
+                            </p>
+                          </section>
 
-              <div>
-                <label htmlFor="editObligationBlockType">Bloco</label>
-                <select
-                  id="editObligationBlockType"
-                  value={editingObligationForm.blockType}
-                  onChange={(event) =>
-                    setEditingObligationForm({
-                      ...editingObligationForm,
-                      blockType: event.target.value as ObligationFormState['blockType']
-                    })
-                  }
-                >
-                  <option value="10">10</option>
-                  <option value="25">25</option>
-                </select>
-              </div>
+                          <section className="month-summary-group">
+                            <h5>Blocos</h5>
+                            <p>Total do bloco 10: {currencyFormatter.format(month.block10.balance)}</p>
+                            <p>Total do bloco 25: {currencyFormatter.format(month.block25.balance)}</p>
+                          </section>
+                        </div>
 
-              <div>
-                <label htmlFor="editObligationIsActive">Ativo</label>
-                <input
-                  id="editObligationIsActive"
-                  type="checkbox"
-                  checked={editingObligationForm.isActive}
-                  onChange={(event) =>
-                    setEditingObligationForm({
-                      ...editingObligationForm,
-                      isActive: event.target.checked
-                    })
-                  }
-                />
-              </div>
+                        <details className="month-summary-extra">
+                          <summary>Ver análise completa</summary>
 
-              <button type="submit" disabled={isUpdatingObligation}>
-                {isUpdatingObligation ? 'Atualizando...' : 'Salvar despesa'}
+                          <div className="month-summary-groups">
+                            <section className="month-summary-group">
+                              <h5>Previsto x realizado</h5>
+                              <p>Entradas previstas: {currencyFormatter.format(monthPlannedVsActual?.totalEntriesPlanned ?? 0)}</p>
+                              <p>Entradas recebidas: {currencyFormatter.format(monthPlannedVsActual?.totalEntriesReceived ?? 0)}</p>
+                              <p>Entradas pendentes: {currencyFormatter.format(monthPlannedVsActual?.totalEntriesPending ?? 0)}</p>
+                              <p>Despesas previstas: {currencyFormatter.format(monthPlannedVsActual?.totalObligationsPlanned ?? 0)}</p>
+                              <p>Despesas pagas: {currencyFormatter.format(monthPlannedVsActual?.totalObligationsPaid ?? 0)}</p>
+                              <p>Despesas pendentes: {currencyFormatter.format(monthPlannedVsActual?.totalObligationsPending ?? 0)}</p>
+                              <p>Saldo realizado parcial: {currencyFormatter.format(monthPlannedVsActual?.partialActualBalance ?? 0)}</p>
+                            </section>
+
+                            <section className="month-summary-group month-summary-executive">
+                              <h5>Leitura executiva</h5>
+                              <ul>
+                                <li>{currentSituation.message}</li>
+                                <li>{expectedComparison.message}</li>
+                                {(monthRisk?.messages ?? ['Situação estável para este mês']).map((riskMessage) => (
+                                  <li key={`${month.key}-risk-${riskMessage}`}>{riskMessage}</li>
+                                ))}
+                              </ul>
+                            </section>
+
+                            <section className="month-summary-group">
+                              <h5>Alertas</h5>
+                              <ul>
+                                {monthAlerts.length > 0 ? (
+                                  monthAlerts.map((alert) => <li key={`${month.key}-${alert}`}>{alert}</li>)
+                                ) : (
+                                  <li>Sem alertas para este mês.</li>
+                                )}
+                              </ul>
+                              <p>Mudanças para o próximo mês:</p>
+                              <ul>
+                                {nextMonthAlerts.length > 0 ? (
+                                  nextMonthAlerts.map((alert) => (
+                                    <li key={`${month.key}-next-${alert}`}>{alert}</li>
+                                  ))
+                                ) : (
+                                  <li>Sem mudanças relevantes para o próximo mês.</li>
+                                )}
+                              </ul>
+                            </section>
+                          </div>
+                        </details>
+
+                        <details
+                          open={expandedMonthKeys.includes(month.key)}
+                          onToggle={(event) =>
+                            handleMonthDetailsToggle(
+                              month.key,
+                              (event.currentTarget as HTMLDetailsElement).open
+                            )
+                          }
+                        >
+                          <summary>Detalhamento do mês</summary>
+
+                          <p>Entradas do mês:</p>
+                          <ul>
+                            {(monthDetails?.entries ?? []).length > 0 ? (
+                              (monthDetails?.entries ?? []).map((entryItem) => {
+                                const currentStatus = getOccurrenceStatus('entry', entryItem.id, month.key);
+                                const isReceived = currentStatus === 'received';
+                                const occurrenceKey = `entry-${entryItem.id}-${month.key}`;
+
+                                return (
+                                  <li key={`${month.key}-entry-${entryItem.id}`}>
+                                    {entryItem.title} — {currencyFormatter.format(Number(entryItem.amount))} (
+                                    {entryItem.recurrence_type}, bloco {normalizeBlockType(entryItem.block_type)}) —{' '}
+                                    <span className={`status-pill ${isReceived ? 'status-success' : 'status-pending'}`}>
+                                      {isReceived ? 'Recebida' : 'Pendente'}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      disabled={isReceived || isUpdatingOccurrenceKey === occurrenceKey}
+                                      onClick={() =>
+                                        handleSetOccurrenceStatus(
+                                          'entry',
+                                          entryItem.id,
+                                          month.key,
+                                          entryItem.title,
+                                          Number(entryItem.amount),
+                                          normalizeBlockType(entryItem.block_type),
+                                          'received'
+                                        )
+                                      }
+                                    >
+                                      {isUpdatingOccurrenceKey === occurrenceKey
+                                        ? 'Salvando...'
+                                        : 'Marcar como recebida'}
+                                    </button>
+                                  </li>
+                                );
+                              })
+                            ) : (
+                              <li>Sem entradas neste mês.</li>
+                            )}
+                          </ul>
+
+                          <p>Despesas do mês:</p>
+                          <ul>
+                            {(monthDetails?.obligations ?? []).length > 0 ? (
+                              (monthDetails?.obligations ?? []).map((obligationItem) => {
+                                const currentStatus = getOccurrenceStatus('obligation', obligationItem.id, month.key);
+                                const isPaid = currentStatus === 'paid';
+                                const occurrenceKey = `obligation-${obligationItem.id}-${month.key}`;
+
+                                return (
+                                  <li key={`${month.key}-obligation-${obligationItem.id}`}>
+                                    {obligationItem.title} — {currencyFormatter.format(Number(obligationItem.amount))} (
+                                    {obligationItem.type}
+                                    {obligationItem.type === 'parcelada' && obligationItem.total_installments
+                                      ? `, parcelada em ${obligationItem.total_installments}x`
+                                      : ''}
+                                    , bloco {normalizeBlockType(obligationItem.block_type)}) —{' '}
+                                    <span className={`status-pill ${isPaid ? 'status-success' : 'status-pending'}`}>
+                                      {isPaid ? 'Paga' : 'Pendente'}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      disabled={isPaid || isUpdatingOccurrenceKey === occurrenceKey}
+                                      onClick={() =>
+                                        handleSetOccurrenceStatus(
+                                          'obligation',
+                                          obligationItem.id,
+                                          month.key,
+                                          obligationItem.title,
+                                          Number(obligationItem.amount),
+                                          normalizeBlockType(obligationItem.block_type),
+                                          'paid'
+                                        )
+                                      }
+                                    >
+                                      {isUpdatingOccurrenceKey === occurrenceKey
+                                        ? 'Salvando...'
+                                        : 'Marcar como paga'}
+                                    </button>
+                                  </li>
+                                );
+                              })
+                            ) : (
+                              <li>Sem despesas neste mês.</li>
+                            )}
+                          </ul>
+
+                          <p>Totais do mês:</p>
+                          <p>Entradas: {currencyFormatter.format(month.totalEntries)}</p>
+                          <p>Despesas: {currencyFormatter.format(month.totalObligations)}</p>
+                          <p>Saldo: {currencyFormatter.format(month.balance)}</p>
+                        </details>
+                      </article>
+                    );
+                  })}
+                </section>
+              ) : null}
+            </details>
+          </section>
+        ) : null}
+
+        {activeSection === 'lancamentos' ? (
+          <section className="card launch-area">
+            <h2>Lançamentos</h2>
+            <p className="launch-subtitle">Gerencie entradas e despesas sem perder o contexto do que já foi cadastrado.</p>
+
+            <div className="launch-segmented-control" role="tablist" aria-label="Navegação de lançamentos">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={launchesView === 'entries'}
+                className={launchesView === 'entries' ? 'is-active' : ''}
+                onClick={() => setLaunchesView('entries')}
+              >
+                Entradas
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setEditingObligationId(null);
-                  setEditingObligationForm(initialObligationForm);
-                }}
+                role="tab"
+                aria-selected={launchesView === 'obligations'}
+                className={launchesView === 'obligations' ? 'is-active' : ''}
+                onClick={() => setLaunchesView('obligations')}
               >
-                Cancelar
+                Despesas
               </button>
-            </form>
-          ) : null}
-          <div className="mobile-list-grid">
-            {obligationList.map((obligationItem, index) => (
-              <article key={`${obligationItem.title}-${obligationItem.start_date}-${obligationItem.amount}-${index}`} className="mobile-list-card">
-                <p className="mobile-list-title">{obligationItem.title}</p>
-                <p className="mobile-list-value">{currencyFormatter.format(Number(obligationItem.amount))}</p>
-                <p>Tipo: Despesa ({obligationItem.type})</p>
-                <p>Data: {obligationItem.start_date}</p>
-                <p>Bloco financeiro: {obligationItem.block_type}</p>
-                <p>Status: {obligationItem.is_active ? 'Ativo' : 'Inativo'}</p>
-                {obligationItem.total_installments ? <p>Parcelas: {obligationItem.total_installments}</p> : null}
-                <div className="button-row">
-                  <button type="button" onClick={() => handleStartEditObligation(obligationItem)}>
-                    Editar
+              <button
+                type="button"
+                role="tab"
+                aria-selected={launchesView === 'history'}
+                className={launchesView === 'history' ? 'is-active' : ''}
+                onClick={() => setLaunchesView('history')}
+              >
+                Histórico
+              </button>
+            </div>
+
+            {entrySuccessMessage ? <p className="launch-feedback launch-feedback-success">{entrySuccessMessage}</p> : null}
+            {obligationSuccessMessage ? (
+              <p className="launch-feedback launch-feedback-success">{obligationSuccessMessage}</p>
+            ) : null}
+
+            {launchesView === 'entries' ? (
+              <section className="launch-panel" id="entry-create-section">
+                <h3>Nova entrada</h3>
+                <form className="modern-form" onSubmit={handleCreateEntry}>
+                  <div className="form-block">
+                    <p className="form-block-title">Informações principais</p>
+                    <div className="form-grid">
+                      <div>
+                        <label htmlFor="entryTitle">Título</label>
+                        <input
+                          id="entryTitle"
+                          type="text"
+                          value={entryForm.title}
+                          onChange={(event) => setEntryForm({ ...entryForm, title: event.target.value })}
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="entryAmount">Valor (R$)</label>
+                        <input
+                          id="entryAmount"
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          value={entryForm.amount}
+                          onChange={(event) => setEntryForm({ ...entryForm, amount: event.target.value })}
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="form-block">
+                    <p className="form-block-title">Recorrência e período</p>
+                    <div className="form-grid">
+                      <div>
+                        <label htmlFor="entryRecurrenceType">Recorrência</label>
+                        <select
+                          id="entryRecurrenceType"
+                          value={entryForm.recurrenceType}
+                          onChange={(event) =>
+                            setEntryForm({
+                              ...entryForm,
+                              recurrenceType: event.target.value as EntryFormState['recurrenceType']
+                            })
+                          }
+                        >
+                          <option value="monthly">Mensal</option>
+                          <option value="one_time">Avulsa</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label htmlFor="entryStartDate">Início</label>
+                        <input
+                          id="entryStartDate"
+                          type="date"
+                          value={entryForm.startDate}
+                          onChange={(event) => setEntryForm({ ...entryForm, startDate: event.target.value })}
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="entryEndDate">Fim (opcional)</label>
+                        <input
+                          id="entryEndDate"
+                          type="date"
+                          value={entryForm.endDate}
+                          onChange={(event) => setEntryForm({ ...entryForm, endDate: event.target.value })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="form-block">
+                    <p className="form-block-title">Organização</p>
+                    <div className="form-grid">
+                      <div>
+                        <label htmlFor="entryDueDay">Dia de vencimento</label>
+                        <input
+                          id="entryDueDay"
+                          type="number"
+                          min="1"
+                          max="31"
+                          value={entryForm.dueDay}
+                          onChange={(event) => setEntryForm({ ...entryForm, dueDay: event.target.value })}
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="entryBlockType">Bloco financeiro</label>
+                        <select
+                          id="entryBlockType"
+                          value={entryForm.blockType}
+                          onChange={(event) =>
+                            setEntryForm({
+                              ...entryForm,
+                              blockType: event.target.value as EntryFormState['blockType']
+                            })
+                          }
+                        >
+                          <option value="10">10</option>
+                          <option value="25">25</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="form-inline-toggle">
+                    <label htmlFor="entryIsActive">Ativo</label>
+                    <input
+                      id="entryIsActive"
+                      type="checkbox"
+                      checked={entryForm.isActive}
+                      onChange={(event) => setEntryForm({ ...entryForm, isActive: event.target.checked })}
+                    />
+                  </div>
+
+                  <button type="submit" disabled={isSavingEntry}>
+                    {isSavingEntry ? 'Salvando entrada...' : 'Salvar entrada'}
                   </button>
-                  <button type="button" onClick={() => handleDeleteObligation(obligationItem.id)}>
-                    Excluir
+                </form>
+              </section>
+            ) : null}
+
+            {launchesView === 'obligations' ? (
+              <section className="launch-panel" id="obligation-create-section">
+                <h3>Nova despesa</h3>
+                <form className="modern-form" onSubmit={handleCreateObligation}>
+                  <div className="form-block">
+                    <p className="form-block-title">Informações principais</p>
+                    <div className="form-grid">
+                      <div>
+                        <label htmlFor="obligationTitle">Título</label>
+                        <input
+                          id="obligationTitle"
+                          type="text"
+                          value={obligationForm.title}
+                          onChange={(event) =>
+                            setObligationForm({ ...obligationForm, title: event.target.value })
+                          }
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="obligationAmount">Valor (R$)</label>
+                        <input
+                          id="obligationAmount"
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          value={obligationForm.amount}
+                          onChange={(event) =>
+                            setObligationForm({ ...obligationForm, amount: event.target.value })
+                          }
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="form-block">
+                    <p className="form-block-title">Tipo e recorrência</p>
+                    <div className="form-grid">
+                      <div>
+                        <label htmlFor="obligationType">Tipo</label>
+                        <select
+                          id="obligationType"
+                          value={obligationForm.type}
+                          onChange={(event) =>
+                            setObligationForm({
+                              ...obligationForm,
+                              type: event.target.value as ObligationFormState['type'],
+                              totalInstallments:
+                                event.target.value === 'parcelada' ? obligationForm.totalInstallments : ''
+                            })
+                          }
+                        >
+                          <option value="fixa">Fixa</option>
+                          <option value="unica">Única</option>
+                          <option value="parcelada">Parcelada</option>
+                        </select>
+                      </div>
+
+                      {obligationForm.type === 'parcelada' ? (
+                        <div>
+                          <label htmlFor="obligationInstallments">Total de parcelas</label>
+                          <input
+                            id="obligationInstallments"
+                            type="number"
+                            min="1"
+                            value={obligationForm.totalInstallments}
+                            onChange={(event) =>
+                              setObligationForm({ ...obligationForm, totalInstallments: event.target.value })
+                            }
+                            required
+                          />
+                        </div>
+                      ) : null}
+
+                      <div>
+                        <label htmlFor="obligationRecurrenceType">Recorrência</label>
+                        <select
+                          id="obligationRecurrenceType"
+                          value={obligationForm.recurrenceType}
+                          onChange={(event) =>
+                            setObligationForm({
+                              ...obligationForm,
+                              recurrenceType: event.target.value as ObligationFormState['recurrenceType']
+                            })
+                          }
+                        >
+                          <option value="monthly">Mensal</option>
+                          <option value="one_time">Avulsa</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="form-block">
+                    <p className="form-block-title">Período e organização</p>
+                    <div className="form-grid">
+                      <div>
+                        <label htmlFor="obligationStartDate">Início</label>
+                        <input
+                          id="obligationStartDate"
+                          type="date"
+                          value={obligationForm.startDate}
+                          onChange={(event) =>
+                            setObligationForm({ ...obligationForm, startDate: event.target.value })
+                          }
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="obligationEndDate">Fim (opcional)</label>
+                        <input
+                          id="obligationEndDate"
+                          type="date"
+                          value={obligationForm.endDate}
+                          onChange={(event) => setObligationForm({ ...obligationForm, endDate: event.target.value })}
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="obligationDueDay">Dia de vencimento</label>
+                        <input
+                          id="obligationDueDay"
+                          type="number"
+                          min="1"
+                          max="31"
+                          value={obligationForm.dueDay}
+                          onChange={(event) => setObligationForm({ ...obligationForm, dueDay: event.target.value })}
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="obligationBlockType">Bloco financeiro</label>
+                        <select
+                          id="obligationBlockType"
+                          value={obligationForm.blockType}
+                          onChange={(event) =>
+                            setObligationForm({
+                              ...obligationForm,
+                              blockType: event.target.value as ObligationFormState['blockType']
+                            })
+                          }
+                        >
+                          <option value="10">10</option>
+                          <option value="25">25</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="form-inline-toggle">
+                    <label htmlFor="obligationIsActive">Ativo</label>
+                    <input
+                      id="obligationIsActive"
+                      type="checkbox"
+                      checked={obligationForm.isActive}
+                      onChange={(event) =>
+                        setObligationForm({ ...obligationForm, isActive: event.target.checked })
+                      }
+                    />
+                  </div>
+
+                  <button type="submit" disabled={isSavingObligation}>
+                    {isSavingObligation ? 'Salvando despesa...' : 'Salvar despesa'}
                   </button>
+                </form>
+              </section>
+            ) : null}
+
+            {launchesView === 'history' ? (
+              <section className="launch-panel">
+                <h3>Histórico de lançamentos</h3>
+                <p className="launch-subtitle">Consulte, edite e exclua lançamentos com ações rápidas em cada item.</p>
+
+                {editingEntryId ? (
+                  <form className="launch-edit-form" onSubmit={handleUpdateEntry}>
+                    <h4>Editar entrada</h4>
+                    <div>
+                      <label htmlFor="editEntryTitle">Título</label>
+                      <input
+                        id="editEntryTitle"
+                        type="text"
+                        value={editingEntryForm.title}
+                        onChange={(event) =>
+                          setEditingEntryForm({ ...editingEntryForm, title: event.target.value })
+                        }
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="editEntryAmount">Valor</label>
+                      <input
+                        id="editEntryAmount"
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        value={editingEntryForm.amount}
+                        onChange={(event) =>
+                          setEditingEntryForm({ ...editingEntryForm, amount: event.target.value })
+                        }
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="editEntryRecurrenceType">Recorrência</label>
+                      <select
+                        id="editEntryRecurrenceType"
+                        value={editingEntryForm.recurrenceType}
+                        onChange={(event) =>
+                          setEditingEntryForm({
+                            ...editingEntryForm,
+                            recurrenceType: event.target.value as EntryFormState['recurrenceType']
+                          })
+                        }
+                      >
+                        <option value="monthly">Mensal</option>
+                        <option value="one_time">Avulsa</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label htmlFor="editEntryStartDate">Data inicial</label>
+                      <input
+                        id="editEntryStartDate"
+                        type="date"
+                        value={editingEntryForm.startDate}
+                        onChange={(event) =>
+                          setEditingEntryForm({ ...editingEntryForm, startDate: event.target.value })
+                        }
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="editEntryEndDate">Data final</label>
+                      <input
+                        id="editEntryEndDate"
+                        type="date"
+                        value={editingEntryForm.endDate}
+                        onChange={(event) =>
+                          setEditingEntryForm({ ...editingEntryForm, endDate: event.target.value })
+                        }
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="editEntryDueDay">Dia de vencimento</label>
+                      <input
+                        id="editEntryDueDay"
+                        type="number"
+                        min="1"
+                        max="31"
+                        value={editingEntryForm.dueDay}
+                        onChange={(event) =>
+                          setEditingEntryForm({ ...editingEntryForm, dueDay: event.target.value })
+                        }
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="editEntryBlockType">Bloco</label>
+                      <select
+                        id="editEntryBlockType"
+                        value={editingEntryForm.blockType}
+                        onChange={(event) =>
+                          setEditingEntryForm({
+                            ...editingEntryForm,
+                            blockType: event.target.value as EntryFormState['blockType']
+                          })
+                        }
+                      >
+                        <option value="10">10</option>
+                        <option value="25">25</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label htmlFor="editEntryIsActive">Ativo</label>
+                      <input
+                        id="editEntryIsActive"
+                        type="checkbox"
+                        checked={editingEntryForm.isActive}
+                        onChange={(event) =>
+                          setEditingEntryForm({ ...editingEntryForm, isActive: event.target.checked })
+                        }
+                      />
+                    </div>
+
+                    <div className="button-row">
+                      <button type="submit" disabled={isUpdatingEntry}>
+                        {isUpdatingEntry ? 'Atualizando...' : 'Salvar entrada'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingEntryId(null);
+                          setEditingEntryForm(initialEntryForm);
+                        }}
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </form>
+                ) : null}
+
+                {editingObligationId ? (
+                  <form className="launch-edit-form" onSubmit={handleUpdateObligation}>
+                    <h4>Editar despesa</h4>
+                    <div>
+                      <label htmlFor="editObligationTitle">Título</label>
+                      <input
+                        id="editObligationTitle"
+                        type="text"
+                        value={editingObligationForm.title}
+                        onChange={(event) =>
+                          setEditingObligationForm({ ...editingObligationForm, title: event.target.value })
+                        }
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="editObligationAmount">Valor</label>
+                      <input
+                        id="editObligationAmount"
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        value={editingObligationForm.amount}
+                        onChange={(event) =>
+                          setEditingObligationForm({ ...editingObligationForm, amount: event.target.value })
+                        }
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="editObligationType">Tipo</label>
+                      <select
+                        id="editObligationType"
+                        value={editingObligationForm.type}
+                        onChange={(event) =>
+                          setEditingObligationForm({
+                            ...editingObligationForm,
+                            type: event.target.value as ObligationFormState['type'],
+                            totalInstallments:
+                              event.target.value === 'parcelada' ? editingObligationForm.totalInstallments : ''
+                          })
+                        }
+                      >
+                        <option value="fixa">Fixa</option>
+                        <option value="unica">Única</option>
+                        <option value="parcelada">Parcelada</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label htmlFor="editObligationRecurrenceType">Recorrência</label>
+                      <select
+                        id="editObligationRecurrenceType"
+                        value={editingObligationForm.recurrenceType}
+                        onChange={(event) =>
+                          setEditingObligationForm({
+                            ...editingObligationForm,
+                            recurrenceType: event.target.value as ObligationFormState['recurrenceType']
+                          })
+                        }
+                      >
+                        <option value="monthly">Mensal</option>
+                        <option value="one_time">Avulsa</option>
+                      </select>
+                    </div>
+
+                    {editingObligationForm.type === 'parcelada' ? (
+                      <div>
+                        <label htmlFor="editObligationInstallments">Total de parcelas</label>
+                        <input
+                          id="editObligationInstallments"
+                          type="number"
+                          min="1"
+                          value={editingObligationForm.totalInstallments}
+                          onChange={(event) =>
+                            setEditingObligationForm({
+                              ...editingObligationForm,
+                              totalInstallments: event.target.value
+                            })
+                          }
+                          required
+                        />
+                      </div>
+                    ) : null}
+
+                    <div>
+                      <label htmlFor="editObligationStartDate">Data inicial</label>
+                      <input
+                        id="editObligationStartDate"
+                        type="date"
+                        value={editingObligationForm.startDate}
+                        onChange={(event) =>
+                          setEditingObligationForm({ ...editingObligationForm, startDate: event.target.value })
+                        }
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="editObligationEndDate">Data final</label>
+                      <input
+                        id="editObligationEndDate"
+                        type="date"
+                        value={editingObligationForm.endDate}
+                        onChange={(event) =>
+                          setEditingObligationForm({ ...editingObligationForm, endDate: event.target.value })
+                        }
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="editObligationDueDay">Dia de vencimento</label>
+                      <input
+                        id="editObligationDueDay"
+                        type="number"
+                        min="1"
+                        max="31"
+                        value={editingObligationForm.dueDay}
+                        onChange={(event) =>
+                          setEditingObligationForm({ ...editingObligationForm, dueDay: event.target.value })
+                        }
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="editObligationBlockType">Bloco</label>
+                      <select
+                        id="editObligationBlockType"
+                        value={editingObligationForm.blockType}
+                        onChange={(event) =>
+                          setEditingObligationForm({
+                            ...editingObligationForm,
+                            blockType: event.target.value as ObligationFormState['blockType']
+                          })
+                        }
+                      >
+                        <option value="10">10</option>
+                        <option value="25">25</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label htmlFor="editObligationIsActive">Ativo</label>
+                      <input
+                        id="editObligationIsActive"
+                        type="checkbox"
+                        checked={editingObligationForm.isActive}
+                        onChange={(event) =>
+                          setEditingObligationForm({
+                            ...editingObligationForm,
+                            isActive: event.target.checked
+                          })
+                        }
+                      />
+                    </div>
+
+                    <div className="button-row">
+                      <button type="submit" disabled={isUpdatingObligation}>
+                        {isUpdatingObligation ? 'Atualizando...' : 'Salvar despesa'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingObligationId(null);
+                          setEditingObligationForm(initialObligationForm);
+                        }}
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </form>
+                ) : null}
+
+                <div className="mobile-list-grid launch-history-grid">
+                  {launchHistoryItems.length > 0 ? (
+                    launchHistoryItems.map((historyItem) => (
+                      <article
+                        key={`${historyItem.source}-${historyItem.id}-${historyItem.date}`}
+                        className="mobile-list-card"
+                      >
+                        <p className="mobile-list-title">{historyItem.title}</p>
+                        <p className="mobile-list-value">{currencyFormatter.format(historyItem.amount)}</p>
+                        <p>Tipo: {historyItem.typeLabel}</p>
+                        <p>Categoria: {historyItem.detailLabel}</p>
+                        <p>Data: {historyItem.date}</p>
+                        <p>Bloco financeiro: {historyItem.blockType}</p>
+                        <p>Status: {historyItem.isActive ? 'Ativo' : 'Inativo'}</p>
+                        <div className="button-row">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (historyItem.source === 'entry') {
+                                handleStartEditEntry(historyItem.originalItem as EntryListRow);
+                                return;
+                              }
+
+                              handleStartEditObligation(historyItem.originalItem as ObligationListRow);
+                            }}
+                          >
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (historyItem.source === 'entry') {
+                                handleDeleteEntry(historyItem.id);
+                                return;
+                              }
+
+                              handleDeleteObligation(historyItem.id);
+                            }}
+                          >
+                            Excluir
+                          </button>
+                        </div>
+                      </article>
+                    ))
+                  ) : (
+                    <p>Nenhum lançamento cadastrado até o momento.</p>
+                  )}
                 </div>
-              </article>
-            ))}
-          </div>
-        </section>
-        </>
+              </section>
+            ) : null}
+          </section>
         ) : null}
 
         {activeSection === 'perfil' ? (
-          <section className="card">
-            <h2>Perfil/Menu</h2>
-            <p>Usuário autenticado: {userEmail || 'Não identificado'}</p>
-            <p>Área preparada para futura foto de perfil e configurações.</p>
-            <button type="button" onClick={handleLogout}>
-              Sair
-            </button>
+          <section className="card profile-card">
+            <h2>Perfil</h2>
+            <article className="profile-identity">
+              <div className="profile-avatar" aria-hidden="true">
+                👤
+              </div>
+              <div>
+                <p className="profile-name">{userEmail ? userEmail.split('@')[0] : 'Usuário'}</p>
+                <p className="profile-email">{userEmail || 'E-mail não identificado'}</p>
+              </div>
+            </article>
+
+            <div className="profile-sections">
+              <article className="profile-section-card">
+                <h3>Conta</h3>
+                <p>Dados essenciais da sua conta para identificação e acesso.</p>
+              </article>
+
+              <article className="profile-section-card">
+                <h3>Preferências</h3>
+                <p>Ajustes visuais e de navegação serão centralizados aqui.</p>
+              </article>
+
+              <article className="profile-section-card">
+                <h3>Sobre o app</h3>
+                <p>Casa em Dia foi feito para simplificar o controle financeiro da família.</p>
+              </article>
+            </div>
+
+            <div className="profile-actions">
+              <button type="button" className="logout-button" onClick={handleLogout}>
+                Sair da conta
+              </button>
+            </div>
           </section>
         ) : null}
       </div>
@@ -2574,7 +3141,7 @@ export default function HomePage() {
           onClick={() => setActiveSection('home')}
         >
           <span aria-hidden="true">🏠</span>
-          <span>Home</span>
+          <span>Início</span>
         </button>
         <button
           type="button"
