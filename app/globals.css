@@ -40,21 +40,30 @@ body {
   font-family: Inter, Arial, sans-serif;
   background: var(--bg-page);
   color: var(--text-primary);
+  overflow-x: hidden;
 }
 
 .app-shell {
   min-height: 100vh;
   width: 100%;
   max-width: 1200px;
+  min-width: 0;
   margin: 0 auto;
   padding: 0.95rem 0.95rem calc(8.6rem + env(safe-area-inset-bottom, 0px));
   display: grid;
   gap: var(--space-4);
+  overflow-x: hidden;
 }
 
 .app-header {
   display: grid;
   gap: var(--space-1);
+  border: 1px solid #dbe5ff;
+  background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
+}
+
+
+.app-header {
   border: 1px solid #dbe5ff;
   background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
 }
@@ -149,6 +158,8 @@ body {
 .content-grid {
   display: grid;
   gap: 1.1rem;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .card {
@@ -230,6 +241,8 @@ body {
 
 .home-main-card {
   gap: var(--space-2);
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .home-support-card {
@@ -262,15 +275,23 @@ body {
 
 .home-month-nav-card {
   padding: 0.5rem 0.55rem;
+  overflow: hidden;
 }
 
 .home-month-nav {
+  width: 100%;
   display: flex;
+  flex-wrap: nowrap;
   gap: 0.42rem;
   overflow-x: auto;
+  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
+  scrollbar-width: none;
   padding-bottom: 0.2rem;
+}
+
+.home-month-nav::-webkit-scrollbar {
+  height: 0;
 }
 
 .home-month-tab {
@@ -287,6 +308,7 @@ body {
   gap: 0.06rem;
   box-shadow: none;
   transform: none;
+  flex: 0 0 auto;
 }
 
 .home-month-tab small {
@@ -302,6 +324,34 @@ body {
 
 .home-month-tab.is-selected small {
   color: #166534;
+}
+
+.home-month-tab-more {
+  background: #f3faf6;
+  border-color: #cfe9d8;
+  color: #166534;
+}
+
+.home-month-actions {
+  margin-top: 0.32rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.home-reset-month-button {
+  padding: 0.3rem 0.55rem;
+  font-size: 0.7rem;
+  border-radius: 999px;
+  background: #f8fbf9;
+  color: #166534;
+  border: 1px solid #cfe9d8;
+  box-shadow: none;
+}
+
+.home-reset-month-button:hover:not(:disabled) {
+  background: #edf7f0;
+  transform: none;
+  box-shadow: none;
 }
 
 .home-month-title span {
@@ -325,6 +375,7 @@ body {
   margin: 0;
   display: grid;
   gap: 0.38rem;
+  min-width: 0;
 }
 
 .home-commitment-item,
@@ -338,6 +389,8 @@ body {
   display: grid;
   gap: 0.22rem;
   padding: 0.42rem 0.55rem;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .home-commitment-row-main,
@@ -353,6 +406,8 @@ body {
   color: var(--text-primary);
   font-size: 0.86rem;
   font-weight: 600;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .home-commitment-value {
