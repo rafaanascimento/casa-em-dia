@@ -392,13 +392,6 @@ const normalizeBlockType = (blockType: unknown): '10' | '25' => {
   return '25';
 };
 
-const sectionSubtitleBySection: Record<DashboardSection, string> = {
-  home: 'Resumo do mês com visão rápida da família.',
-  lancamentos: 'Cadastre e ajuste entradas e despesas com clareza.',
-  projecao: 'Acompanhe cenários futuros para planejar com segurança.',
-  perfil: 'Gerencie sua conta e preferências do app.'
-};
-
 export default function HomePage() {
   const router = useRouter();
 
@@ -1086,15 +1079,20 @@ export default function HomePage() {
   };
 
   const handleUndoCommitmentOperation = async (item: (typeof currentMonthCommitments)[number]) => {
+    if (item.status === 'pending') {
+      setError('Este compromisso ainda não possui registro processado para excluir.');
+      return;
+    }
+
     const normalizedSourceId = item.id.trim();
     const normalizedMonthKey = normalizeMonthKey(currentMonthKey);
-    const sourceTypeForDatabase = toDatabaseSourceType(item.sourceType);
+    const sourceTypeVariants = item.sourceType === 'entry' ? ['entry', 'entries'] : ['obligation', 'obligations'];
 
     const { error: deleteOccurrenceError } = await supabase
       .from('monthly_occurrences')
       .delete()
       .eq('family_id', familyId)
-      .eq('source_type', sourceTypeForDatabase)
+      .in('source_type', sourceTypeVariants)
       .eq('source_id', normalizedSourceId)
       .eq('month_key', normalizedMonthKey);
 
@@ -1118,11 +1116,19 @@ export default function HomePage() {
     setOpenCommitmentMenuKey(null);
     setActiveCommitmentEditorKey(null);
     setOperationAmountDraft('');
+    setOperationStatusDraft('paid');
     await loadFinancialData(familyId);
   };
 
-  const handleResetSelectedMonth = async () => {
+  const handleResetCurrentMonth = async () => {
     if (!familyId || !currentMonthKey) {
+      return;
+    }
+
+    const normalizedMonthKey = normalizeMonthKey(currentMonthKey);
+
+    if (!normalizedMonthKey) {
+      setError('Não foi possível identificar o mês selecionado para resetar.');
       return;
     }
 
@@ -1133,8 +1139,6 @@ export default function HomePage() {
     if (!shouldReset) {
       return;
     }
-
-    const normalizedMonthKey = normalizeMonthKey(currentMonthKey);
 
     const { error: deleteError } = await supabase
       .from('monthly_occurrences')
@@ -1150,6 +1154,7 @@ export default function HomePage() {
     setOpenCommitmentMenuKey(null);
     setActiveCommitmentEditorKey(null);
     setOperationAmountDraft('');
+    setOperationStatusDraft('paid');
     await loadFinancialData(familyId);
   };
 
@@ -1730,7 +1735,6 @@ export default function HomePage() {
               {userEmail ? `, ${userEmail.split('@')[0]}` : ''}.
             </p>
             <h1 className="app-title">Casa em Dia</h1>
-            <p className="brand-subtitle">{sectionSubtitleBySection[activeSection]}</p>
           </div>
         </div>
       </header>
@@ -1775,24 +1779,24 @@ export default function HomePage() {
               </button>
             ) : null}
           </div>
-          {familyId && currentMonthKey ? (
-            <div className="home-month-actions">
-              <button type="button" className="home-reset-month-button" onClick={() => void handleResetSelectedMonth()}>
-                Resetar mês
-              </button>
-            </div>
-          ) : null}
         </section>
         <section className="card home-main-card">
           {currentMonthProjection ? (
             <>
               <header className="home-month-header">
-                <p className="home-month-title">
-                  {currentMonthLabel.month} <span>{currentMonthLabel.year}</span>
-                </p>
-                <span className={`status-pill ${getRiskTone(currentMonthRisk.level)}`}>
-                  {getRiskBadgeLabel(currentMonthRisk.level)}
-                </span>
+                <div className="home-month-header-main">
+                  <p className="home-month-title">
+                    {currentMonthLabel.month} <span>{currentMonthLabel.year}</span>
+                  </p>
+                  <span className={`status-pill ${getRiskTone(currentMonthRisk.level)}`}>
+                    {getRiskBadgeLabel(currentMonthRisk.level)}
+                  </span>
+                </div>
+                {familyId && currentMonthKey ? (
+                  <button type="button" className="home-reset-month-button" onClick={() => void handleResetCurrentMonth()}>
+                    Resetar
+                  </button>
+                ) : null}
               </header>
 
               <section className="home-commitments">

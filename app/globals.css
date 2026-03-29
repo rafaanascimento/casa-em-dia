@@ -116,6 +116,12 @@ body {
   background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
 }
 
+
+.app-header {
+  border: 1px solid #dbe5ff;
+  background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
+}
+
 .brand-row {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -140,12 +146,6 @@ body {
   font-size: 0.84rem;
   font-weight: 500;
   color: #166534;
-}
-
-.brand-subtitle {
-  margin: 0.15rem 0 0;
-  font-size: 0.88rem;
-  color: var(--text-secondary);
 }
 
 .app-title {
@@ -264,6 +264,14 @@ body {
   justify-content: space-between;
   gap: var(--space-2);
   margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.home-month-header-main {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
 .home-month-title {
@@ -330,12 +338,6 @@ body {
   background: #f3faf6;
   border-color: #cfe9d8;
   color: #166534;
-}
-
-.home-month-actions {
-  margin-top: 0.32rem;
-  display: flex;
-  justify-content: flex-end;
 }
 
 .home-reset-month-button {
@@ -1291,10 +1293,6 @@ tr.is-safe-month {
 
   h2 {
     font-size: 1.14rem;
-  }
-
-  .brand-subtitle {
-    font-size: 0.82rem;
   }
 
   .status-pill {
