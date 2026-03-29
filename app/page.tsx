@@ -514,33 +514,33 @@ export default function HomePage() {
       { data: obligationsListData, error: obligationsListError },
       { data: occurrencesData, error: occurrencesError }
     ] = await Promise.all([
-        supabase
-          .from('entries')
-          .select('id, title, amount, recurrence_type, start_date, end_date, block_type')
-          .eq('family_id', currentFamilyId)
-          .eq('is_active', true),
-        supabase
-          .from('obligations')
-          .select('id, title, amount, type, recurrence_type, total_installments, start_date, end_date, block_type')
-          .eq('family_id', currentFamilyId)
-          .eq('is_active', true),
-        supabase
-          .from('entries')
-          .select('id, title, amount, recurrence_type, start_date, end_date, due_day, block_type, is_active')
-          .eq('family_id', currentFamilyId)
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('obligations')
-          .select(
-            'id, title, amount, type, recurrence_type, total_installments, start_date, end_date, due_day, block_type, is_active'
-          )
-          .eq('family_id', currentFamilyId)
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('monthly_occurrences')
-          .select('family_id, source_type, source_id, month_key, title, amount, block_type, status, processed_at')
-          .eq('family_id', currentFamilyId)
-      ]);
+      supabase
+        .from('entries')
+        .select('id, title, amount, recurrence_type, start_date, end_date, block_type')
+        .eq('family_id', currentFamilyId)
+        .eq('is_active', true),
+      supabase
+        .from('obligations')
+        .select('id, title, amount, type, recurrence_type, total_installments, start_date, end_date, block_type')
+        .eq('family_id', currentFamilyId)
+        .eq('is_active', true),
+      supabase
+        .from('entries')
+        .select('id, title, amount, recurrence_type, start_date, end_date, due_day, block_type, is_active')
+        .eq('family_id', currentFamilyId)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('obligations')
+        .select(
+          'id, title, amount, type, recurrence_type, total_installments, start_date, end_date, due_day, block_type, is_active'
+        )
+        .eq('family_id', currentFamilyId)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('monthly_occurrences')
+        .select('family_id, source_type, source_id, month_key, title, amount, block_type, status, processed_at')
+        .eq('family_id', currentFamilyId)
+    ]);
 
     if (entriesError || obligationsError || entriesListError || obligationsListError || occurrencesError) {
       setError('Não foi possível carregar os dados para projeção mensal.');
@@ -3091,6 +3091,7 @@ export default function HomePage() {
       </div>
 
       <div className="bottom-safe-spacer" aria-hidden="true" />
+
       {isFabOpen ? (
         <button
           type="button"
@@ -3099,6 +3100,7 @@ export default function HomePage() {
           onClick={() => setIsFabOpen(false)}
         />
       ) : null}
+
       <div className="fab-wrapper" onClick={(event) => event.stopPropagation()}>
         {isFabOpen ? (
           <div className="fab-actions" onClick={(event) => event.stopPropagation()}>
@@ -3124,6 +3126,7 @@ export default function HomePage() {
             </button>
           </div>
         ) : null}
+
         <button
           type="button"
           className="fab-button"
