@@ -352,7 +352,6 @@ const normalizeSourceType = (sourceType: string) => {
   if (normalizedValue === 'entries') return 'entry';
   if (normalizedValue === 'obligations') return 'obligation';
   if (normalizedValue === 'entry' || normalizedValue === 'obligation') return normalizedValue;
-=======
   if (value === 'entries') {
     return 'entry';
   }
