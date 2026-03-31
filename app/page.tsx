@@ -347,7 +347,7 @@ const getRiskBadgeLabel = (riskLevel: MonthRiskAnalysis['level']) => {
 };
 
 const normalizeSourceType = (sourceType: string) => {
-  const value = sourceType.trim().toLowerCase();
+  const normalizedValue = sourceType.trim().toLowerCase();
 
   if (normalizedValue === 'entries') return 'entry';
   if (normalizedValue === 'obligations') return 'obligation';
