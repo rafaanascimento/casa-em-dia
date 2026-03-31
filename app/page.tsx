@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../lib/supabase';
 
@@ -347,7 +347,7 @@ const getRiskBadgeLabel = (riskLevel: MonthRiskAnalysis['level']) => {
 };
 
 const normalizeSourceType = (sourceType: string) => {
-  const normalizedValue = sourceType.trim().toLowerCase();
+  const value = sourceType.trim().toLowerCase();
 
   if (normalizedValue === 'entries') return 'entry';
   if (normalizedValue === 'obligations') return 'obligation';
@@ -422,6 +422,16 @@ export default function HomePage() {
   const [homeMonthsVisibleCount, setHomeMonthsVisibleCount] = useState(HOME_MONTHS_BATCH_SIZE);
   const [operationAmountDraft, setOperationAmountDraft] = useState('');
   const [operationStatusDraft, setOperationStatusDraft] = useState<'received' | 'paid'>('paid');
+  const hasNormalizedSourceTypesRef = useRef(false);
+
+  const normalizeDatabaseSourceTypes = async () => {
+    await supabase.from('monthly_occurrences').update({ source_type: 'entry' }).eq('source_type', 'entries');
+
+    await supabase
+      .from('monthly_occurrences')
+      .update({ source_type: 'obligation' })
+      .eq('source_type', 'obligations');
+  };
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -622,6 +632,10 @@ export default function HomePage() {
       if (familyMember?.family_id) {
         setFamilyId(familyMember.family_id);
         setHasFamilyMembership(true);
+        if (!hasNormalizedSourceTypesRef.current) {
+          await normalizeDatabaseSourceTypes();
+          hasNormalizedSourceTypesRef.current = true;
+        }
         await loadFinancialData(familyMember.family_id);
       }
 
@@ -1278,6 +1292,7 @@ export default function HomePage() {
     status: 'received' | 'paid'
   ) => {
     const normalizedSourceType = normalizeSourceType(sourceType);
+    const canonicalSourceType = toDatabaseSourceType(sourceType);
     const normalizedSourceId = sourceId.trim();
     const normalizedMonthKey = normalizeMonthKey(monthKey);
     const occurrenceKey = `${sourceType}-${sourceId}-${monthKey}`;
@@ -1295,10 +1310,11 @@ export default function HomePage() {
       return;
     }
 
-    if (!normalizedSourceType || !normalizedSourceId || !normalizedMonthKey) {
+    if (!normalizedSourceType || !normalizedSourceId || !normalizedMonthKey || canonicalSourceType !== sourceType) {
       console.error('Falha ao atualizar status mensal: parâmetros inválidos.', {
         familyId,
         sourceType,
+        canonicalSourceType,
         sourceId,
         monthKey,
         normalizedSourceType,
