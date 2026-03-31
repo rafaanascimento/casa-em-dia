@@ -349,7 +349,6 @@ const getRiskBadgeLabel = (riskLevel: MonthRiskAnalysis['level']) => {
 const normalizeSourceType = (sourceType: string) => {
   const value = sourceType.trim().toLowerCase();
 
-<<<<<<< codex/fix-delete-and-reset-functionality-tz5j3w
   if (normalizedValue === 'entries') return 'entry';
   if (normalizedValue === 'obligations') return 'obligation';
   if (normalizedValue === 'entry' || normalizedValue === 'obligation') return normalizedValue;
@@ -365,7 +364,6 @@ const normalizeSourceType = (sourceType: string) => {
   if (value === 'entry' || value === 'obligation') {
     return value;
   }
->>>>>>> main
 
   return '';
 };
@@ -1116,10 +1114,7 @@ export default function HomePage() {
 
     const normalizedSourceId = item.id.trim();
     const normalizedMonthKey = normalizeMonthKey(currentMonthKey);
-<<<<<<< codex/fix-delete-and-reset-functionality-tz5j3w
 
-=======
->>>>>>> main
     const { error: deleteOccurrenceError } = await supabase
       .from('monthly_occurrences')
       .delete()
@@ -1148,7 +1143,7 @@ export default function HomePage() {
 
   const handleResetMonth = async (monthKey: string) => {
     if (!familyId) {
-<<<<<<< codex/fix-delete-and-reset-functionality-tz5j3w
+
       setError('Família não identificada.');
       return;
     }
@@ -1161,7 +1156,7 @@ export default function HomePage() {
     setError('');
 
     const normalizedMonthKey = normalizeMonthKey(monthKey);
-=======
+
       return;
     }
 
@@ -1176,7 +1171,7 @@ export default function HomePage() {
     if (!confirmReset) {
       return;
     }
->>>>>>> main
+
 
     const { error: resetError } = await supabase
       .from('monthly_occurrences')
@@ -1184,7 +1179,6 @@ export default function HomePage() {
       .eq('family_id', familyId)
       .eq('month_key', normalizedMonthKey);
 
-<<<<<<< codex/fix-delete-and-reset-functionality-tz5j3w
     if (resetError) {
       console.error('Erro ao resetar mês:', {
         error: resetError,
@@ -1193,10 +1187,10 @@ export default function HomePage() {
         normalizedMonthKey
       });
       setError(`Não foi possível resetar o mês: ${resetError.message}`);
-=======
+
     if (deleteError) {
       setError('Erro ao resetar mês');
->>>>>>> main
+
       return;
     }
 
