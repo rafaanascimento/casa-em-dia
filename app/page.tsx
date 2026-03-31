@@ -347,19 +347,11 @@ const getRiskBadgeLabel = (riskLevel: MonthRiskAnalysis['level']) => {
 };
 
 const normalizeSourceType = (sourceType: string) => {
-  const value = sourceType.trim().toLowerCase();
+  const normalizedValue = sourceType.trim().toLowerCase();
 
-  if (value === 'entries') {
-    return 'entry';
-  }
-
-  if (value === 'obligations') {
-    return 'obligation';
-  }
-
-  if (value === 'entry' || value === 'obligation') {
-    return value;
-  }
+  if (normalizedValue === 'entries') return 'entry';
+  if (normalizedValue === 'obligations') return 'obligation';
+  if (normalizedValue === 'entry' || normalizedValue === 'obligation') return normalizedValue;
 
   return '';
 };
@@ -512,6 +504,18 @@ export default function HomePage() {
 
   const loadFinancialData = async (currentFamilyId: string) => {
     setIsLoadingProjectionData(true);
+
+    await supabase
+      .from('monthly_occurrences')
+      .update({ source_type: 'entry' })
+      .eq('family_id', currentFamilyId)
+      .eq('source_type', 'entries');
+
+    await supabase
+      .from('monthly_occurrences')
+      .update({ source_type: 'obligation' })
+      .eq('family_id', currentFamilyId)
+      .eq('source_type', 'obligations');
 
     const [
       { data: entriesData, error: entriesError },
@@ -1089,13 +1093,16 @@ export default function HomePage() {
   };
 
   const handleUndoCommitmentOperation = async (item: (typeof currentMonthCommitments)[number]) => {
-    if (item.status === 'pending') {
-      setError('Este compromisso ainda não possui registro processado para excluir.');
+    if (!familyId) {
+      setError('Família não identificada.');
       return;
     }
 
+    setError('');
+
     const normalizedSourceId = item.id.trim();
     const normalizedMonthKey = normalizeMonthKey(currentMonthKey);
+
     const { error: deleteOccurrenceError } = await supabase
       .from('monthly_occurrences')
       .delete()
@@ -1105,38 +1112,26 @@ export default function HomePage() {
       .eq('month_key', normalizedMonthKey);
 
     if (deleteOccurrenceError) {
-      setError('Não foi possível desfazer o status deste compromisso.');
+      console.error('Erro ao excluir registro mensal:', {
+        error: deleteOccurrenceError,
+        familyId,
+        sourceType: item.sourceType,
+        sourceId: normalizedSourceId,
+        monthKey: normalizedMonthKey
+      });
+      setError(`Não foi possível excluir o registro: ${deleteOccurrenceError.message}`);
       return;
     }
-
-    setMonthlyOccurrences((previous) =>
-      previous.filter(
-        (occurrence) =>
-          !(
-            occurrence.family_id === familyId &&
-            normalizeSourceType(occurrence.source_type) === item.sourceType &&
-            occurrence.source_id === normalizedSourceId &&
-            normalizeMonthKey(occurrence.month_key) === normalizedMonthKey
-          )
-      )
-    );
 
     setOpenCommitmentMenuKey(null);
     setActiveCommitmentEditorKey(null);
     setOperationAmountDraft('');
-    setOperationStatusDraft('paid');
     await loadFinancialData(familyId);
   };
 
   const handleResetMonth = async (monthKey: string) => {
     if (!familyId) {
-      return;
-    }
-
-    const normalizedMonthKey = normalizeMonthKey(monthKey);
-
-    if (!normalizedMonthKey) {
-      setError('Não foi possível identificar o mês selecionado para resetar.');
+      setError('Família não identificada.');
       return;
     }
 
@@ -1145,29 +1140,29 @@ export default function HomePage() {
       return;
     }
 
-    const { error: deleteError } = await supabase
+    setError('');
+
+    const normalizedMonthKey = normalizeMonthKey(monthKey);
+
+    const { error: resetError } = await supabase
       .from('monthly_occurrences')
       .delete()
       .eq('family_id', familyId)
       .eq('month_key', normalizedMonthKey);
 
-    if (deleteError) {
-      setError('Erro ao resetar mês');
+    if (resetError) {
+      console.error('Erro ao resetar mês:', resetError);
+      setError(`Não foi possível resetar o mês: ${resetError.message}`);
       return;
     }
 
     setOpenCommitmentMenuKey(null);
     setActiveCommitmentEditorKey(null);
     setOperationAmountDraft('');
-    setOperationStatusDraft('paid');
     await loadFinancialData(familyId);
   };
 
   const handleResetCurrentMonth = async () => {
-    if (!currentMonthKey) {
-      return;
-    }
-
     await handleResetMonth(currentMonthKey);
   };
 
