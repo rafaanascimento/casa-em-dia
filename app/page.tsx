@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../lib/supabase';
 
@@ -78,7 +78,7 @@ type ObligationListRow = {
 
 type MonthlyOccurrenceRow = {
   family_id: string;
-  source_type: 'entry' | 'obligation' | 'entries' | 'obligations';
+  source_type: 'entry' | 'obligation';
   source_id: string;
   month_key: string;
   title: string;
@@ -347,29 +347,25 @@ const getRiskBadgeLabel = (riskLevel: MonthRiskAnalysis['level']) => {
 };
 
 const normalizeSourceType = (sourceType: string) => {
-  const normalizedValue = sourceType.trim().toLowerCase();
+  const value = sourceType.trim().toLowerCase();
 
-  if (normalizedValue === 'entries') {
+  if (value === 'entries') {
     return 'entry';
   }
 
-  if (normalizedValue === 'obligations') {
+  if (value === 'obligations') {
     return 'obligation';
   }
 
-  if (normalizedValue === 'entry' || normalizedValue === 'obligation') {
-    return normalizedValue;
+  if (value === 'entry' || value === 'obligation') {
+    return value;
   }
 
   return '';
 };
 
 const toDatabaseSourceType = (sourceType: 'entry' | 'obligation') => {
-  if (sourceType === 'entry') {
-    return 'entries';
-  }
-
-  return 'obligations';
+  return sourceType;
 };
 
 const normalizeMonthKey = (monthKey: string) => {
@@ -434,6 +430,16 @@ export default function HomePage() {
   const [homeMonthsVisibleCount, setHomeMonthsVisibleCount] = useState(HOME_MONTHS_BATCH_SIZE);
   const [operationAmountDraft, setOperationAmountDraft] = useState('');
   const [operationStatusDraft, setOperationStatusDraft] = useState<'received' | 'paid'>('paid');
+  const hasNormalizedSourceTypesRef = useRef(false);
+
+  const normalizeDatabaseSourceTypes = async () => {
+    await supabase.from('monthly_occurrences').update({ source_type: 'entry' }).eq('source_type', 'entries');
+
+    await supabase
+      .from('monthly_occurrences')
+      .update({ source_type: 'obligation' })
+      .eq('source_type', 'obligations');
+  };
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -622,6 +628,10 @@ export default function HomePage() {
       if (familyMember?.family_id) {
         setFamilyId(familyMember.family_id);
         setHasFamilyMembership(true);
+        if (!hasNormalizedSourceTypesRef.current) {
+          await normalizeDatabaseSourceTypes();
+          hasNormalizedSourceTypesRef.current = true;
+        }
         await loadFinancialData(familyMember.family_id);
       }
 
@@ -1086,13 +1096,11 @@ export default function HomePage() {
 
     const normalizedSourceId = item.id.trim();
     const normalizedMonthKey = normalizeMonthKey(currentMonthKey);
-    const sourceTypeVariants = item.sourceType === 'entry' ? ['entry', 'entries'] : ['obligation', 'obligations'];
-
     const { error: deleteOccurrenceError } = await supabase
       .from('monthly_occurrences')
       .delete()
       .eq('family_id', familyId)
-      .in('source_type', sourceTypeVariants)
+      .eq('source_type', item.sourceType)
       .eq('source_id', normalizedSourceId)
       .eq('month_key', normalizedMonthKey);
 
@@ -1120,23 +1128,20 @@ export default function HomePage() {
     await loadFinancialData(familyId);
   };
 
-  const handleResetCurrentMonth = async () => {
-    if (!familyId || !currentMonthKey) {
+  const handleResetMonth = async (monthKey: string) => {
+    if (!familyId) {
       return;
     }
 
-    const normalizedMonthKey = normalizeMonthKey(currentMonthKey);
+    const normalizedMonthKey = normalizeMonthKey(monthKey);
 
     if (!normalizedMonthKey) {
       setError('Não foi possível identificar o mês selecionado para resetar.');
       return;
     }
 
-    const shouldReset = window.confirm(
-      'Isso vai apagar os registros mensais processados deste mês (pagos/recebidos) e limpar o acompanhamento do mês selecionado. Deseja continuar?'
-    );
-
-    if (!shouldReset) {
+    const confirmReset = window.confirm('Deseja resetar este mês?');
+    if (!confirmReset) {
       return;
     }
 
@@ -1147,7 +1152,7 @@ export default function HomePage() {
       .eq('month_key', normalizedMonthKey);
 
     if (deleteError) {
-      setError('Não foi possível resetar a movimentação do mês selecionado.');
+      setError('Erro ao resetar mês');
       return;
     }
 
@@ -1156,6 +1161,14 @@ export default function HomePage() {
     setOperationAmountDraft('');
     setOperationStatusDraft('paid');
     await loadFinancialData(familyId);
+  };
+
+  const handleResetCurrentMonth = async () => {
+    if (!currentMonthKey) {
+      return;
+    }
+
+    await handleResetMonth(currentMonthKey);
   };
 
   const monthPlannedVsActualByKey = useMemo(() => {
@@ -1284,9 +1297,9 @@ export default function HomePage() {
     status: 'received' | 'paid'
   ) => {
     const normalizedSourceType = normalizeSourceType(sourceType);
+    const canonicalSourceType = toDatabaseSourceType(sourceType);
     const normalizedSourceId = sourceId.trim();
     const normalizedMonthKey = normalizeMonthKey(monthKey);
-    const sourceTypeForDatabase = toDatabaseSourceType(sourceType);
     const occurrenceKey = `${sourceType}-${sourceId}-${monthKey}`;
     setError('');
     setIsUpdatingOccurrenceKey(occurrenceKey);
@@ -1302,10 +1315,11 @@ export default function HomePage() {
       return;
     }
 
-    if (!normalizedSourceType || !normalizedSourceId || !normalizedMonthKey) {
+    if (!normalizedSourceType || !normalizedSourceId || !normalizedMonthKey || canonicalSourceType !== sourceType) {
       console.error('Falha ao atualizar status mensal: parâmetros inválidos.', {
         familyId,
         sourceType,
+        canonicalSourceType,
         sourceId,
         monthKey,
         normalizedSourceType,
@@ -1320,7 +1334,7 @@ export default function HomePage() {
     const { error: upsertError } = await supabase.from('monthly_occurrences').upsert(
       {
         family_id: familyId,
-        source_type: sourceTypeForDatabase,
+        source_type: sourceType,
         source_id: normalizedSourceId,
         month_key: normalizedMonthKey,
         title,
@@ -1342,7 +1356,7 @@ export default function HomePage() {
         hint: upsertError.hint,
         payload: {
           family_id: familyId,
-          source_type: sourceTypeForDatabase,
+          source_type: sourceType,
           source_id: normalizedSourceId,
           month_key: normalizedMonthKey,
           title,
@@ -1359,7 +1373,7 @@ export default function HomePage() {
     setMonthlyOccurrences((previous) => {
       const updatedOccurrence: MonthlyOccurrenceRow = {
         family_id: familyId,
-        source_type: sourceTypeForDatabase,
+        source_type: sourceType,
         source_id: normalizedSourceId,
         month_key: normalizedMonthKey,
         title,
