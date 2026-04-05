@@ -57,21 +57,31 @@
 }
 
 :root[data-theme='dark'] {
-  --bg-page: #0b1220;
-  --bg-card: #121a2b;
-  --bg-soft: #1a2338;
-  --bg-elevated: #1b2740;
-  --text-primary: #e2e8f0;
-  --text-secondary: #a8b3c7;
+  --bg-page: #07111f;
+  --bg-card: #0d1a2b;
+  --bg-soft: #122238;
+  --bg-elevated: #16253a;
+  --text-primary: #f3f7fb;
+  --text-secondary: #b7c4d6;
   --text-highlight: #86efac;
-  --color-border: #2a3550;
-  --header-border: #334155;
-  --header-bg-start: #0f172a;
-  --header-bg-end: #172033;
+  --color-border: #20324a;
+  --header-border: #243751;
+  --header-bg-start: #0b1627;
+  --header-bg-end: #10203a;
   --nav-surface: rgba(12, 18, 32, 0.96);
-  --nav-active-bg: #1f2a44;
-  --fab-border: #334155;
-  --input-bg: #1a2338;
+  --nav-active-bg: #1a2d49;
+  --fab-border: #2e4462;
+  --input-bg: #122238;
+  --pill-success-bg: #11291e;
+  --pill-success-text: #9ee6bf;
+  --pill-warning-bg: #2b2112;
+  --pill-warning-text: #f0c68a;
+  --pill-danger-bg: #2c171b;
+  --pill-danger-text: #f1a0aa;
+  --pill-accent-bg: #1a2740;
+  --pill-accent-text: #b8c8ff;
+  --shadow-soft: 0 10px 22px rgba(0, 0, 0, 0.35);
+  --shadow-soft-hover: 0 14px 30px rgba(0, 0, 0, 0.42);
 }
 
 * {
@@ -1436,4 +1446,106 @@ tr.is-safe-month {
   margin-left: 0;
   font-size: 0.66rem;
   padding: 0.1rem 0.42rem;
+}
+
+:root[data-theme='dark'] .home-month-tab {
+  background: #102134;
+  border-color: #23384f;
+  color: var(--text-secondary);
+}
+
+:root[data-theme='dark'] .home-month-tab small {
+  color: #95a7bf;
+}
+
+:root[data-theme='dark'] .home-month-tab.is-selected {
+  background: #15314d;
+  border-color: #3f5f82;
+  color: #d8e7ff;
+}
+
+:root[data-theme='dark'] .home-month-tab.is-selected small {
+  color: #c2d7f5;
+}
+
+:root[data-theme='dark'] .home-month-tab-more,
+:root[data-theme='dark'] .home-reset-month-button {
+  background: #12273e;
+  border-color: #2e4a68;
+  color: #bfe0ff;
+}
+
+:root[data-theme='dark'] .home-reset-month-button:hover:not(:disabled) {
+  background: #17324f;
+}
+
+:root[data-theme='dark'] .home-commitment-item,
+:root[data-theme='dark'] .home-block-list-item,
+:root[data-theme='dark'] .home-block-details,
+:root[data-theme='dark'] .month-block-card,
+:root[data-theme='dark'] .mobile-list-card,
+:root[data-theme='dark'] .launch-panel,
+:root[data-theme='dark'] .profile-identity {
+  background: #102033;
+  border-color: #23384f;
+}
+
+:root[data-theme='dark'] .home-commitment-meta,
+:root[data-theme='dark'] .launch-subtitle,
+:root[data-theme='dark'] .profile-email {
+  color: #9db0c8;
+}
+
+:root[data-theme='dark'] .home-commitment-menu-button,
+:root[data-theme='dark'] .home-commitment-action-button {
+  background: #17304a;
+  border-color: #325273;
+  color: #c3ddff;
+}
+
+:root[data-theme='dark'] .home-commitment-action-button.is-danger {
+  background: #3a1c24;
+  border-color: #71414b;
+  color: #f7bac1;
+}
+
+:root[data-theme='dark'] .launch-segmented-control {
+  background: #122238;
+  border-color: #253c56;
+}
+
+:root[data-theme='dark'] .launch-segmented-control button {
+  color: #b4c6dd;
+}
+
+:root[data-theme='dark'] .launch-segmented-control button.is-active {
+  background: #1b3656;
+  color: #d8e8ff;
+}
+
+:root[data-theme='dark'] .bottom-nav button:hover:not(:disabled),
+:root[data-theme='dark'] .bottom-nav button:active:not(:disabled) {
+  background: #142338;
+}
+
+:root[data-theme='dark'] .fab-actions button {
+  background: #153253;
+  color: #deebff;
+}
+
+:root[data-theme='dark'] .fab-button {
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.35);
+}
+
+:root[data-theme='dark'] details,
+:root[data-theme='dark'] .projection-section details,
+:root[data-theme='dark'] .projection-month-card,
+:root[data-theme='dark'] .projection-block-card,
+:root[data-theme='dark'] .month-summary {
+  background: #102033;
+  border-color: #243b56;
+}
+
+:root[data-theme='dark'] input::placeholder {
+  color: #7f95b2;
 }
