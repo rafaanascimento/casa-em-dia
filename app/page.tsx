@@ -1129,30 +1129,56 @@ export default function HomePage() {
     await loadFinancialData(familyId);
   };
 
-  const handleResetMonth = async (monthKey: string) => {
+  const handleDeleteCommitmentRecord = async (item: (typeof currentMonthCommitments)[number]) => {
     if (!familyId) {
       setError('Família não identificada.');
       return;
     }
 
-    const confirmReset = window.confirm('Deseja resetar este mês?');
-    if (!confirmReset) {
+    const shouldDeleteRecord = window.confirm('Tem certeza que deseja excluir este registro?');
+    if (!shouldDeleteRecord) {
       return;
     }
 
     setError('');
 
-    const normalizedMonthKey = normalizeMonthKey(monthKey);
+    const normalizedSourceId = item.id.trim();
+    const normalizedSourceType = toDatabaseSourceType(item.sourceType);
+    const sourceTable = item.sourceType === 'entry' ? 'entries' : 'obligations';
 
-    const { error: resetError } = await supabase
+    const { error: deleteRecordError } = await supabase
+      .from(sourceTable)
+      .delete()
+      .eq('family_id', familyId)
+      .eq('id', item.id);
+
+    if (deleteRecordError) {
+      console.error('Erro ao excluir registro real do compromisso:', {
+        error: deleteRecordError,
+        familyId,
+        sourceTable,
+        itemId: item.id,
+        sourceType: item.sourceType
+      });
+      setError(`Não foi possível excluir o registro: ${deleteRecordError.message}`);
+      return;
+    }
+
+    const { error: deleteOccurrencesError } = await supabase
       .from('monthly_occurrences')
       .delete()
       .eq('family_id', familyId)
-      .eq('month_key', normalizedMonthKey);
+      .eq('source_id', normalizedSourceId)
+      .eq('source_type', normalizedSourceType);
 
-    if (resetError) {
-      console.error('Erro ao resetar mês:', resetError);
-      setError(`Não foi possível resetar o mês: ${resetError.message}`);
+    if (deleteOccurrencesError) {
+      console.error('Erro ao excluir ocorrências mensais após exclusão do registro:', {
+        error: deleteOccurrencesError,
+        familyId,
+        sourceId: normalizedSourceId,
+        sourceType: normalizedSourceType
+      });
+      setError(`Registro excluído, mas houve erro ao limpar ocorrências mensais: ${deleteOccurrencesError.message}`);
       return;
     }
 
@@ -1163,7 +1189,102 @@ export default function HomePage() {
   };
 
   const handleResetCurrentMonth = async () => {
-    await handleResetMonth(currentMonthKey);
+    if (!familyId) {
+      setError('Família não identificada.');
+      return;
+    }
+
+    if (currentMonthCommitments.length === 0) {
+      setError('Não há compromissos para resetar neste mês.');
+      return;
+    }
+
+    const confirmReset = window.confirm('Deseja resetar o mês atual e excluir todos os registros exibidos?');
+    if (!confirmReset) {
+      return;
+    }
+
+    setError('');
+
+    const entryIdsToDelete = Array.from(
+      new Set(
+        currentMonthCommitments
+          .filter((item) => item.sourceType === 'entry')
+          .map((item) => item.id.trim())
+          .filter(Boolean)
+      )
+    );
+    const obligationIdsToDelete = Array.from(
+      new Set(
+        currentMonthCommitments
+          .filter((item) => item.sourceType === 'obligation')
+          .map((item) => item.id.trim())
+          .filter(Boolean)
+      )
+    );
+    const allCommitmentIds = Array.from(new Set([...entryIdsToDelete, ...obligationIdsToDelete]));
+
+    if (entryIdsToDelete.length > 0) {
+      const { error: deleteEntriesError } = await supabase
+        .from('entries')
+        .delete()
+        .eq('family_id', familyId)
+        .in('id', entryIdsToDelete);
+
+      if (deleteEntriesError) {
+        console.error('Erro ao resetar mês atual: falha ao excluir entradas.', {
+          error: deleteEntriesError,
+          familyId,
+          currentMonthKey,
+          entryIdsToDelete
+        });
+        setError(`Não foi possível resetar o mês: ${deleteEntriesError.message}`);
+        return;
+      }
+    }
+
+    if (obligationIdsToDelete.length > 0) {
+      const { error: deleteObligationsError } = await supabase
+        .from('obligations')
+        .delete()
+        .eq('family_id', familyId)
+        .in('id', obligationIdsToDelete);
+
+      if (deleteObligationsError) {
+        console.error('Erro ao resetar mês atual: falha ao excluir despesas.', {
+          error: deleteObligationsError,
+          familyId,
+          currentMonthKey,
+          obligationIdsToDelete
+        });
+        setError(`Não foi possível resetar o mês: ${deleteObligationsError.message}`);
+        return;
+      }
+    }
+
+    if (allCommitmentIds.length > 0) {
+      const { error: deleteOccurrencesError } = await supabase
+        .from('monthly_occurrences')
+        .delete()
+        .eq('family_id', familyId)
+        .in('source_id', allCommitmentIds);
+
+      if (deleteOccurrencesError) {
+        console.error('Erro ao resetar mês atual: falha ao excluir ocorrências mensais.', {
+          error: deleteOccurrencesError,
+          familyId,
+          currentMonthKey,
+          allCommitmentIds
+        });
+        setError(`Não foi possível resetar o mês: ${deleteOccurrencesError.message}`);
+        return;
+      }
+    }
+
+    setOpenCommitmentMenuKey(null);
+    setActiveCommitmentEditorKey(null);
+    setOperationAmountDraft('');
+    await loadFinancialData(familyId);
   };
 
   const monthPlannedVsActualByKey = useMemo(() => {
@@ -1875,8 +1996,7 @@ export default function HomePage() {
                             <button
                               type="button"
                               className="home-commitment-action-button is-danger"
-                              disabled={item.status === 'pending'}
-                              onClick={() => void handleUndoCommitmentOperation(item)}
+                              onClick={() => void handleDeleteCommitmentRecord(item)}
                             >
                               Excluir registro
                             </button>
