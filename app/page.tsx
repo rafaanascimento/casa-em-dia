@@ -390,6 +390,11 @@ export default function HomePage() {
   const [isLoadingProjectionData, setIsLoadingProjectionData] = useState(false);
   const [userId, setUserId] = useState('');
   const [userEmail, setUserEmail] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [displayNameDraft, setDisplayNameDraft] = useState('');
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileSuccessMessage, setProfileSuccessMessage] = useState('');
   const [familyId, setFamilyId] = useState('');
   const [familyName, setFamilyName] = useState('');
   const [hasFamilyMembership, setHasFamilyMembership] = useState(false);
@@ -423,6 +428,16 @@ export default function HomePage() {
   const [operationAmountDraft, setOperationAmountDraft] = useState('');
   const [operationStatusDraft, setOperationStatusDraft] = useState<'received' | 'paid'>('paid');
   const hasNormalizedSourceTypesRef = useRef(false);
+
+  const fallbackDisplayName = useMemo(() => {
+    const emailPrefix = userEmail.split('@')[0]?.trim();
+    return emailPrefix || 'Usuário';
+  }, [userEmail]);
+
+  const resolvedDisplayName = useMemo(() => {
+    const trimmedDisplayName = displayName.trim();
+    return trimmedDisplayName || fallbackDisplayName;
+  }, [displayName, fallbackDisplayName]);
 
   const normalizeDatabaseSourceTypes = async () => {
     await supabase.from('monthly_occurrences').update({ source_type: 'entry' }).eq('source_type', 'entries');
@@ -501,6 +516,38 @@ export default function HomePage() {
 
     return () => window.cancelAnimationFrame(frameId);
   }, [activeSection, launchTarget]);
+
+  const loadUserProfile = async (authenticatedUserId: string, authenticatedUserEmail: string) => {
+    setProfileLoading(true);
+
+    const emailFallback = authenticatedUserEmail.split('@')[0]?.trim() || 'Usuário';
+
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, display_name')
+      .eq('id', authenticatedUserId)
+      .limit(1)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error('Erro ao carregar perfil do usuário:', {
+        error: profileError,
+        userId: authenticatedUserId
+      });
+      setError('Não foi possível carregar os dados do perfil.');
+      setDisplayName('');
+      setDisplayNameDraft(emailFallback);
+      setProfileLoading(false);
+      return;
+    }
+
+    const normalizedDisplayName = String(profileData?.display_name ?? '').trim();
+    const nextDisplayName = normalizedDisplayName || emailFallback;
+
+    setDisplayName(nextDisplayName);
+    setDisplayNameDraft(nextDisplayName);
+    setProfileLoading(false);
+  };
 
   const loadFinancialData = async (currentFamilyId: string) => {
     setIsLoadingProjectionData(true);
@@ -615,6 +662,7 @@ export default function HomePage() {
       const authenticatedUser = data.session.user;
       setUserId(authenticatedUser.id);
       setUserEmail(authenticatedUser.email ?? '');
+      await loadUserProfile(authenticatedUser.id, authenticatedUser.email ?? '');
 
       const { data: familyMember, error: familyMembershipError } = await supabase
         .from('family_members')
@@ -644,6 +692,59 @@ export default function HomePage() {
 
     void checkSessionAndFamily();
   }, [router]);
+
+  const handleSaveProfileDisplayName = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!userId) {
+      setError('Usuário não identificado para salvar perfil.');
+      return;
+    }
+
+    const normalizedName = displayNameDraft.trim();
+
+    if (!normalizedName) {
+      setError('Informe um nome de exibição válido.');
+      return;
+    }
+
+    setError('');
+    setProfileSuccessMessage('');
+    setIsSavingProfile(true);
+
+    const { error: saveProfileError } = await supabase
+      .from('profiles')
+      .upsert(
+        {
+          id: userId,
+          display_name: normalizedName,
+          updated_at: new Date().toISOString()
+        },
+        { onConflict: 'id' }
+      );
+
+    if (saveProfileError) {
+      console.error('Erro ao salvar nome de exibição do perfil:', {
+        message: saveProfileError.message,
+        code: saveProfileError.code,
+        details: saveProfileError.details,
+        hint: saveProfileError.hint,
+        userId,
+        payload: {
+          id: userId,
+          display_name: normalizedName
+        }
+      });
+      setError(`Não foi possível salvar o perfil: ${saveProfileError.message}`);
+      setIsSavingProfile(false);
+      return;
+    }
+
+    setDisplayName(normalizedName);
+    setDisplayNameDraft(normalizedName);
+    setProfileSuccessMessage('Nome de exibição atualizado com sucesso.');
+    setIsSavingProfile(false);
+  };
 
   const projection = useMemo<ProjectionMonth[]>(() => {
     const nowMonth = getMonthStart(new Date());
@@ -1129,30 +1230,56 @@ export default function HomePage() {
     await loadFinancialData(familyId);
   };
 
-  const handleResetMonth = async (monthKey: string) => {
+  const handleDeleteCommitmentRecord = async (item: (typeof currentMonthCommitments)[number]) => {
     if (!familyId) {
       setError('Família não identificada.');
       return;
     }
 
-    const confirmReset = window.confirm('Deseja resetar este mês?');
-    if (!confirmReset) {
+    const shouldDeleteRecord = window.confirm('Tem certeza que deseja excluir este registro?');
+    if (!shouldDeleteRecord) {
       return;
     }
 
     setError('');
 
-    const normalizedMonthKey = normalizeMonthKey(monthKey);
+    const normalizedSourceId = item.id.trim();
+    const normalizedSourceType = toDatabaseSourceType(item.sourceType);
+    const sourceTable = item.sourceType === 'entry' ? 'entries' : 'obligations';
 
-    const { error: resetError } = await supabase
+    const { error: deleteRecordError } = await supabase
+      .from(sourceTable)
+      .delete()
+      .eq('family_id', familyId)
+      .eq('id', item.id);
+
+    if (deleteRecordError) {
+      console.error('Erro ao excluir registro real do compromisso:', {
+        error: deleteRecordError,
+        familyId,
+        sourceTable,
+        itemId: item.id,
+        sourceType: item.sourceType
+      });
+      setError(`Não foi possível excluir o registro: ${deleteRecordError.message}`);
+      return;
+    }
+
+    const { error: deleteOccurrencesError } = await supabase
       .from('monthly_occurrences')
       .delete()
       .eq('family_id', familyId)
-      .eq('month_key', normalizedMonthKey);
+      .eq('source_id', normalizedSourceId)
+      .eq('source_type', normalizedSourceType);
 
-    if (resetError) {
-      console.error('Erro ao resetar mês:', resetError);
-      setError(`Não foi possível resetar o mês: ${resetError.message}`);
+    if (deleteOccurrencesError) {
+      console.error('Erro ao excluir ocorrências mensais após exclusão do registro:', {
+        error: deleteOccurrencesError,
+        familyId,
+        sourceId: normalizedSourceId,
+        sourceType: normalizedSourceType
+      });
+      setError(`Registro excluído, mas houve erro ao limpar ocorrências mensais: ${deleteOccurrencesError.message}`);
       return;
     }
 
@@ -1163,7 +1290,102 @@ export default function HomePage() {
   };
 
   const handleResetCurrentMonth = async () => {
-    await handleResetMonth(currentMonthKey);
+    if (!familyId) {
+      setError('Família não identificada.');
+      return;
+    }
+
+    if (currentMonthCommitments.length === 0) {
+      setError('Não há compromissos para resetar neste mês.');
+      return;
+    }
+
+    const confirmReset = window.confirm('Deseja resetar o mês atual e excluir todos os registros exibidos?');
+    if (!confirmReset) {
+      return;
+    }
+
+    setError('');
+
+    const entryIdsToDelete = Array.from(
+      new Set(
+        currentMonthCommitments
+          .filter((item) => item.sourceType === 'entry')
+          .map((item) => item.id.trim())
+          .filter(Boolean)
+      )
+    );
+    const obligationIdsToDelete = Array.from(
+      new Set(
+        currentMonthCommitments
+          .filter((item) => item.sourceType === 'obligation')
+          .map((item) => item.id.trim())
+          .filter(Boolean)
+      )
+    );
+    const allCommitmentIds = Array.from(new Set([...entryIdsToDelete, ...obligationIdsToDelete]));
+
+    if (entryIdsToDelete.length > 0) {
+      const { error: deleteEntriesError } = await supabase
+        .from('entries')
+        .delete()
+        .eq('family_id', familyId)
+        .in('id', entryIdsToDelete);
+
+      if (deleteEntriesError) {
+        console.error('Erro ao resetar mês atual: falha ao excluir entradas.', {
+          error: deleteEntriesError,
+          familyId,
+          currentMonthKey,
+          entryIdsToDelete
+        });
+        setError(`Não foi possível resetar o mês: ${deleteEntriesError.message}`);
+        return;
+      }
+    }
+
+    if (obligationIdsToDelete.length > 0) {
+      const { error: deleteObligationsError } = await supabase
+        .from('obligations')
+        .delete()
+        .eq('family_id', familyId)
+        .in('id', obligationIdsToDelete);
+
+      if (deleteObligationsError) {
+        console.error('Erro ao resetar mês atual: falha ao excluir despesas.', {
+          error: deleteObligationsError,
+          familyId,
+          currentMonthKey,
+          obligationIdsToDelete
+        });
+        setError(`Não foi possível resetar o mês: ${deleteObligationsError.message}`);
+        return;
+      }
+    }
+
+    if (allCommitmentIds.length > 0) {
+      const { error: deleteOccurrencesError } = await supabase
+        .from('monthly_occurrences')
+        .delete()
+        .eq('family_id', familyId)
+        .in('source_id', allCommitmentIds);
+
+      if (deleteOccurrencesError) {
+        console.error('Erro ao resetar mês atual: falha ao excluir ocorrências mensais.', {
+          error: deleteOccurrencesError,
+          familyId,
+          currentMonthKey,
+          allCommitmentIds
+        });
+        setError(`Não foi possível resetar o mês: ${deleteOccurrencesError.message}`);
+        return;
+      }
+    }
+
+    setOpenCommitmentMenuKey(null);
+    setActiveCommitmentEditorKey(null);
+    setOperationAmountDraft('');
+    await loadFinancialData(familyId);
   };
 
   const monthPlannedVsActualByKey = useMemo(() => {
@@ -1741,7 +1963,7 @@ export default function HomePage() {
           <div>
             <p className="brand-greeting">
               {greetingMessage}
-              {userEmail ? `, ${userEmail.split('@')[0]}` : ''}.
+              {resolvedDisplayName ? `, ${resolvedDisplayName}` : ''}.
             </p>
             <h1 className="app-title">Casa em Dia</h1>
           </div>
@@ -1875,8 +2097,7 @@ export default function HomePage() {
                             <button
                               type="button"
                               className="home-commitment-action-button is-danger"
-                              disabled={item.status === 'pending'}
-                              onClick={() => void handleUndoCommitmentOperation(item)}
+                              onClick={() => void handleDeleteCommitmentRecord(item)}
                             >
                               Excluir registro
                             </button>
@@ -3068,9 +3289,34 @@ export default function HomePage() {
                 👤
               </div>
               <div>
-                <p className="profile-name">{userEmail ? userEmail.split('@')[0] : 'Usuário'}</p>
+                <p className="profile-name">{resolvedDisplayName}</p>
                 <p className="profile-email">{userEmail || 'E-mail não identificado'}</p>
               </div>
+            </article>
+
+            <article className="profile-section-card profile-edit-card">
+              <h3>Dados do perfil</h3>
+              <p>Defina como seu nome deve aparecer no aplicativo.</p>
+              <form className="profile-edit-form" onSubmit={handleSaveProfileDisplayName}>
+                <div>
+                  <label htmlFor="displayName">Nome de exibição</label>
+                  <input
+                    id="displayName"
+                    type="text"
+                    value={displayNameDraft}
+                    onChange={(event) => setDisplayNameDraft(event.target.value)}
+                    placeholder="Seu nome"
+                    maxLength={80}
+                    disabled={profileLoading || isSavingProfile}
+                    required
+                  />
+                </div>
+                <button type="submit" disabled={profileLoading || isSavingProfile}>
+                  {isSavingProfile ? 'Salvando...' : 'Salvar alterações'}
+                </button>
+              </form>
+              {profileLoading ? <p className="profile-feedback">Carregando perfil...</p> : null}
+              {profileSuccessMessage ? <p className="success-message">{profileSuccessMessage}</p> : null}
             </article>
 
             <div className="profile-sections">
