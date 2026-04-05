@@ -122,7 +122,7 @@ type MonthRiskAnalysis = {
 
 type DashboardSection = 'home' | 'lancamentos' | 'projecao' | 'perfil';
 type LaunchesView = 'entries' | 'obligations' | 'history';
-type ThemePreference = 'light' | 'dark' | 'system';
+type ThemePreference = 'light' | 'dark';
 
 const PROJECTION_MONTHS = 24;
 const HOME_MONTHS_BATCH_SIZE = 6;
@@ -377,7 +377,6 @@ const normalizeThemePreference = (value?: string | null): ThemePreference => {
   const normalized = (value ?? '').trim().toLowerCase();
 
   if (normalized === 'dark' || normalized === 'escuro') return 'dark';
-  if (normalized === 'system' || normalized === 'sistema') return 'system';
   return 'light';
 };
 
@@ -409,8 +408,7 @@ export default function HomePage() {
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
   const [passwordSuccessMessage, setPasswordSuccessMessage] = useState('');
   const [selectedTheme, setSelectedTheme] = useState<ThemePreference>('light');
-  const [isSavingThemePreference, setIsSavingThemePreference] = useState(false);
-  const [themeSuccessMessage, setThemeSuccessMessage] = useState('');
+  const [isTogglingTheme, setIsTogglingTheme] = useState(false);
   const [familyId, setFamilyId] = useState('');
   const [familyName, setFamilyName] = useState('');
   const [hasFamilyMembership, setHasFamilyMembership] = useState(false);
@@ -758,14 +756,7 @@ export default function HomePage() {
     }
 
     const applyTheme = (theme: ThemePreference) => {
-      const resolvedTheme =
-        theme === 'system'
-          ? window.matchMedia('(prefers-color-scheme: dark)').matches
-            ? 'dark'
-            : 'light'
-          : theme;
-
-      document.documentElement.setAttribute('data-theme', resolvedTheme);
+      document.documentElement.setAttribute('data-theme', theme);
     };
 
     applyTheme(selectedTheme);
@@ -2039,17 +2030,18 @@ export default function HomePage() {
     }
   };
 
-  const handleSaveThemePreference = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
+  const handleToggleTheme = async () => {
     if (!userId) {
       setError('Usuário não identificado.');
       return;
     }
 
+    const nextTheme: ThemePreference = selectedTheme === 'dark' ? 'light' : 'dark';
+    const previousTheme = selectedTheme;
+
+    setSelectedTheme(nextTheme);
     setError('');
-    setThemeSuccessMessage('');
-    setIsSavingThemePreference(true);
+    setIsTogglingTheme(true);
 
     try {
       const { error: saveThemeError } = await supabase
@@ -2057,7 +2049,7 @@ export default function HomePage() {
         .upsert(
           {
             user_id: userId,
-            theme: selectedTheme,
+            theme: nextTheme,
             updated_at: new Date().toISOString()
           },
           { onConflict: 'user_id' }
@@ -2070,15 +2062,14 @@ export default function HomePage() {
           details: saveThemeError.details,
           hint: saveThemeError.hint,
           userId,
-          selectedTheme
+          selectedTheme: nextTheme
         });
         setError(`Não foi possível salvar o tema: ${saveThemeError.message}`);
+        setSelectedTheme(previousTheme);
         return;
       }
-
-      setThemeSuccessMessage('Preferência salva com sucesso.');
     } finally {
-      setIsSavingThemePreference(false);
+      setIsTogglingTheme(false);
     }
   };
 
@@ -2147,6 +2138,16 @@ export default function HomePage() {
             </p>
             <h1 className="app-title">Casa em Dia</h1>
           </div>
+          <button
+            type="button"
+            className="theme-toggle-button"
+            onClick={() => void handleToggleTheme()}
+            disabled={isTogglingTheme}
+            aria-label={selectedTheme === 'dark' ? 'Ativar tema claro' : 'Ativar tema escuro'}
+            title={selectedTheme === 'dark' ? 'Ativar tema claro' : 'Ativar tema escuro'}
+          >
+            {selectedTheme === 'dark' ? '☀️' : '🌙'}
+          </button>
         </div>
       </header>
       <div className="content-grid">
@@ -3536,24 +3537,7 @@ export default function HomePage() {
               <article className="profile-section-card">
                 <h3>Preferências</h3>
                 <p>Ajustes visuais e de navegação serão centralizados aqui.</p>
-                <form className="profile-edit-form" onSubmit={handleSaveThemePreference}>
-                  <div>
-                    <label htmlFor="themePreference">Tema</label>
-                    <select
-                      id="themePreference"
-                      value={selectedTheme}
-                      onChange={(event) => setSelectedTheme(event.target.value as ThemePreference)}
-                    >
-                      <option value="light">Claro</option>
-                      <option value="dark">Escuro</option>
-                      <option value="system">Sistema</option>
-                    </select>
-                  </div>
-                  <button type="submit" disabled={isSavingThemePreference}>
-                    {isSavingThemePreference ? 'Salvando...' : 'Salvar preferência'}
-                  </button>
-                </form>
-                {themeSuccessMessage ? <p className="success-message">{themeSuccessMessage}</p> : null}
+                <p>Use o botão de tema no cabeçalho para alternar entre modo claro e escuro.</p>
               </article>
 
               <article className="profile-section-card">
