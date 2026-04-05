@@ -391,9 +391,9 @@ export default function HomePage() {
   const [userId, setUserId] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [profileNameInput, setProfileNameInput] = useState('');
+  const [displayNameDraft, setDisplayNameDraft] = useState('');
   const [profileLoading, setProfileLoading] = useState(false);
-  const [profileSaving, setProfileSaving] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileSuccessMessage, setProfileSuccessMessage] = useState('');
   const [familyId, setFamilyId] = useState('');
   const [familyName, setFamilyName] = useState('');
@@ -524,7 +524,7 @@ export default function HomePage() {
 
     const { data: profileData, error: profileError } = await supabase
       .from('profiles')
-      .select('display_name, full_name')
+      .select('id, display_name')
       .eq('id', authenticatedUserId)
       .limit(1)
       .maybeSingle();
@@ -536,17 +536,16 @@ export default function HomePage() {
       });
       setError('Não foi possível carregar os dados do perfil.');
       setDisplayName('');
-      setProfileNameInput(emailFallback);
+      setDisplayNameDraft(emailFallback);
       setProfileLoading(false);
       return;
     }
 
-    const normalizedDisplayName = String(profileData?.display_name ?? profileData?.full_name ?? '')
-      .trim();
+    const normalizedDisplayName = String(profileData?.display_name ?? '').trim();
     const nextDisplayName = normalizedDisplayName || emailFallback;
 
     setDisplayName(nextDisplayName);
-    setProfileNameInput(nextDisplayName);
+    setDisplayNameDraft(nextDisplayName);
     setProfileLoading(false);
   };
 
@@ -694,7 +693,7 @@ export default function HomePage() {
     void checkSessionAndFamily();
   }, [router]);
 
-  const handleSaveProfile = async (event: FormEvent<HTMLFormElement>) => {
+  const handleSaveProfileDisplayName = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!userId) {
@@ -702,7 +701,7 @@ export default function HomePage() {
       return;
     }
 
-    const normalizedName = profileNameInput.trim();
+    const normalizedName = displayNameDraft.trim();
 
     if (!normalizedName) {
       setError('Informe um nome de exibição válido.');
@@ -711,7 +710,7 @@ export default function HomePage() {
 
     setError('');
     setProfileSuccessMessage('');
-    setProfileSaving(true);
+    setIsSavingProfile(true);
 
     const { error: saveProfileError } = await supabase
       .from('profiles')
@@ -719,25 +718,32 @@ export default function HomePage() {
         {
           id: userId,
           display_name: normalizedName,
-          full_name: normalizedName
+          updated_at: new Date().toISOString()
         },
         { onConflict: 'id' }
       );
 
     if (saveProfileError) {
       console.error('Erro ao salvar nome de exibição do perfil:', {
-        error: saveProfileError,
-        userId
+        message: saveProfileError.message,
+        code: saveProfileError.code,
+        details: saveProfileError.details,
+        hint: saveProfileError.hint,
+        userId,
+        payload: {
+          id: userId,
+          display_name: normalizedName
+        }
       });
       setError(`Não foi possível salvar o perfil: ${saveProfileError.message}`);
-      setProfileSaving(false);
+      setIsSavingProfile(false);
       return;
     }
 
     setDisplayName(normalizedName);
-    setProfileNameInput(normalizedName);
+    setDisplayNameDraft(normalizedName);
     setProfileSuccessMessage('Nome de exibição atualizado com sucesso.');
-    setProfileSaving(false);
+    setIsSavingProfile(false);
   };
 
   const projection = useMemo<ProjectionMonth[]>(() => {
@@ -3291,22 +3297,22 @@ export default function HomePage() {
             <article className="profile-section-card profile-edit-card">
               <h3>Dados do perfil</h3>
               <p>Defina como seu nome deve aparecer no aplicativo.</p>
-              <form className="profile-edit-form" onSubmit={handleSaveProfile}>
+              <form className="profile-edit-form" onSubmit={handleSaveProfileDisplayName}>
                 <div>
                   <label htmlFor="displayName">Nome de exibição</label>
                   <input
                     id="displayName"
                     type="text"
-                    value={profileNameInput}
-                    onChange={(event) => setProfileNameInput(event.target.value)}
+                    value={displayNameDraft}
+                    onChange={(event) => setDisplayNameDraft(event.target.value)}
                     placeholder="Seu nome"
                     maxLength={80}
-                    disabled={profileLoading || profileSaving}
+                    disabled={profileLoading || isSavingProfile}
                     required
                   />
                 </div>
-                <button type="submit" disabled={profileLoading || profileSaving}>
-                  {profileSaving ? 'Salvando...' : 'Salvar alterações'}
+                <button type="submit" disabled={profileLoading || isSavingProfile}>
+                  {isSavingProfile ? 'Salvando...' : 'Salvar alterações'}
                 </button>
               </form>
               {profileLoading ? <p className="profile-feedback">Carregando perfil...</p> : null}
