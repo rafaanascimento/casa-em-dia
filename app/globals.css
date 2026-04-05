@@ -1541,6 +1541,31 @@ tr.is-safe-month {
   background: #17324f;
 }
 
+:root[data-theme='dark'] .home-main-card {
+  background: linear-gradient(180deg, #0f1f33 0%, #12243a 100%);
+  border-color: #2a3f5a;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.36);
+}
+
+:root[data-theme='dark'] .home-month-title {
+  color: var(--text-primary);
+}
+
+:root[data-theme='dark'] .home-month-title span,
+:root[data-theme='dark'] .home-month-total p,
+:root[data-theme='dark'] .home-commitments p,
+:root[data-theme='dark'] .home-block-mini-summary,
+:root[data-theme='dark'] .home-block-item-meta,
+:root[data-theme='dark'] .home-commitment-meta {
+  color: var(--text-secondary);
+}
+
+:root[data-theme='dark'] .home-commitments h3,
+:root[data-theme='dark'] .current-month-blocks h3,
+:root[data-theme='dark'] .home-month-total h3 {
+  color: var(--text-primary);
+}
+
 :root[data-theme='dark'] .home-commitment-item,
 :root[data-theme='dark'] .home-block-list-item,
 :root[data-theme='dark'] .home-block-details,
@@ -1606,6 +1631,30 @@ tr.is-safe-month {
 :root[data-theme='dark'] .month-summary {
   background: #102033;
   border-color: #243b56;
+}
+
+:root[data-theme='dark'] .home-block-details summary {
+  background: #14273f;
+  color: var(--text-primary);
+}
+
+:root[data-theme='dark'] .money-value {
+  background: transparent;
+  color: var(--text-primary);
+}
+
+:root[data-theme='dark'] .status-positive,
+:root[data-theme='dark'] .status-success {
+  border-color: #2f5f4a;
+}
+
+:root[data-theme='dark'] .status-tight,
+:root[data-theme='dark'] .status-pending {
+  border-color: #6d5631;
+}
+
+:root[data-theme='dark'] .status-negative {
+  border-color: #6e434c;
 }
 
 :root[data-theme='dark'] input::placeholder {
