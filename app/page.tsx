@@ -122,6 +122,7 @@ type MonthRiskAnalysis = {
 
 type DashboardSection = 'home' | 'lancamentos' | 'projecao' | 'perfil';
 type LaunchesView = 'entries' | 'obligations' | 'history';
+type UserThemePreference = 'claro' | 'escuro' | 'sistema';
 
 const PROJECTION_MONTHS = 24;
 const HOME_MONTHS_BATCH_SIZE = 6;
@@ -395,6 +396,13 @@ export default function HomePage() {
   const [profileLoading, setProfileLoading] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileSuccessMessage, setProfileSuccessMessage] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+  const [passwordSuccessMessage, setPasswordSuccessMessage] = useState('');
+  const [selectedTheme, setSelectedTheme] = useState<UserThemePreference>('sistema');
+  const [isSavingThemePreference, setIsSavingThemePreference] = useState(false);
+  const [themeSuccessMessage, setThemeSuccessMessage] = useState('');
   const [familyId, setFamilyId] = useState('');
   const [familyName, setFamilyName] = useState('');
   const [hasFamilyMembership, setHasFamilyMembership] = useState(false);
@@ -704,6 +712,40 @@ export default function HomePage() {
 
     void checkSessionAndFamily();
   }, [router]);
+
+  useEffect(() => {
+    const loadThemePreference = async () => {
+      if (!userId) {
+        return;
+      }
+
+      const { data: preferenceData, error: preferenceError } = await supabase
+        .from('user_preferences')
+        .select('theme')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (preferenceError) {
+        console.error('Erro ao carregar preferência de tema:', {
+          message: preferenceError.message,
+          code: preferenceError.code,
+          details: preferenceError.details,
+          hint: preferenceError.hint,
+          userId
+        });
+        setError(`Não foi possível carregar preferências: ${preferenceError.message}`);
+        return;
+      }
+
+      const themeFromDatabase = preferenceData?.theme;
+
+      if (themeFromDatabase === 'claro' || themeFromDatabase === 'escuro' || themeFromDatabase === 'sistema') {
+        setSelectedTheme(themeFromDatabase);
+      }
+    };
+
+    void loadThemePreference();
+  }, [userId]);
 
   const handleSaveProfileDisplayName = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -1931,6 +1973,89 @@ export default function HomePage() {
     }
 
     router.replace('/login');
+  };
+
+  const handleUpdatePassword = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    setError('');
+    setPasswordSuccessMessage('');
+    setIsUpdatingPassword(true);
+
+    try {
+      if (newPassword.length < 6) {
+        setError('A nova senha deve ter pelo menos 6 caracteres.');
+        return;
+      }
+
+      if (newPassword !== confirmNewPassword) {
+        setError('As senhas informadas não são iguais.');
+        return;
+      }
+
+      const { error: updatePasswordError } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (updatePasswordError) {
+        console.error('Erro ao atualizar senha:', {
+          message: updatePasswordError.message,
+          code: updatePasswordError.code,
+          name: updatePasswordError.name
+        });
+        setError(`Não foi possível atualizar a senha: ${updatePasswordError.message}`);
+        return;
+      }
+
+      setPasswordSuccessMessage('Senha atualizada com sucesso');
+      setNewPassword('');
+      setConfirmNewPassword('');
+    } finally {
+      setIsUpdatingPassword(false);
+    }
+  };
+
+  const handleSaveThemePreference = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!userId) {
+      setError('Usuário não identificado.');
+      return;
+    }
+
+    setError('');
+    setThemeSuccessMessage('');
+    setIsSavingThemePreference(true);
+
+    try {
+      const { error: saveThemeError } = await supabase
+        .from('user_preferences')
+        .upsert(
+          {
+            user_id: userId,
+            theme: selectedTheme,
+            updated_at: new Date().toISOString()
+          },
+          { onConflict: 'user_id' }
+        );
+
+      if (saveThemeError) {
+        console.error('Erro ao salvar preferência de tema:', {
+          message: saveThemeError.message,
+          code: saveThemeError.code,
+          details: saveThemeError.details,
+          hint: saveThemeError.hint,
+          userId,
+          selectedTheme
+        });
+        setError(`Não foi possível salvar o tema: ${saveThemeError.message}`);
+        return;
+      }
+
+      setThemeSuccessMessage('Preferência de tema salva com sucesso.');
+    } finally {
+      setIsSavingThemePreference(false);
+    }
   };
 
   const handleMonthDetailsToggle = (monthKey: string, isOpen: boolean) => {
@@ -3354,16 +3479,67 @@ export default function HomePage() {
               <article className="profile-section-card">
                 <h3>Conta</h3>
                 <p>Dados essenciais da sua conta para identificação e acesso.</p>
+                <form className="profile-edit-form" onSubmit={handleUpdatePassword}>
+                  <div>
+                    <label htmlFor="newPassword">Nova senha</label>
+                    <input
+                      id="newPassword"
+                      type="password"
+                      value={newPassword}
+                      onChange={(event) => setNewPassword(event.target.value)}
+                      minLength={6}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="confirmNewPassword">Confirmar senha</label>
+                    <input
+                      id="confirmNewPassword"
+                      type="password"
+                      value={confirmNewPassword}
+                      onChange={(event) => setConfirmNewPassword(event.target.value)}
+                      minLength={6}
+                      required
+                    />
+                  </div>
+                  <button type="submit" disabled={isUpdatingPassword}>
+                    {isUpdatingPassword ? 'Salvando...' : 'Atualizar senha'}
+                  </button>
+                </form>
+                {passwordSuccessMessage ? <p className="success-message">{passwordSuccessMessage}</p> : null}
               </article>
 
               <article className="profile-section-card">
                 <h3>Preferências</h3>
                 <p>Ajustes visuais e de navegação serão centralizados aqui.</p>
+                <form className="profile-edit-form" onSubmit={handleSaveThemePreference}>
+                  <div>
+                    <label htmlFor="themePreference">Tema</label>
+                    <select
+                      id="themePreference"
+                      value={selectedTheme}
+                      onChange={(event) => setSelectedTheme(event.target.value as UserThemePreference)}
+                    >
+                      <option value="claro">Claro</option>
+                      <option value="escuro">Escuro</option>
+                      <option value="sistema">Sistema</option>
+                    </select>
+                  </div>
+                  <button type="submit" disabled={isSavingThemePreference}>
+                    {isSavingThemePreference ? 'Salvando...' : 'Salvar preferência'}
+                  </button>
+                </form>
+                {themeSuccessMessage ? <p className="success-message">{themeSuccessMessage}</p> : null}
               </article>
 
               <article className="profile-section-card">
                 <h3>Sobre o app</h3>
-                <p>Casa em Dia foi feito para simplificar o controle financeiro da família.</p>
+                <p>
+                  Casa em Dia foi desenvolvido para simplificar o controle financeiro familiar, com foco em
+                  organização, clareza e praticidade.
+                </p>
+                <p>Versão: v1.0.0</p>
+                <p>Desenvolvido por Rafael</p>
               </article>
             </div>
 
