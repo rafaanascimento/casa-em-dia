@@ -122,7 +122,7 @@ type MonthRiskAnalysis = {
 
 type DashboardSection = 'home' | 'lancamentos' | 'projecao' | 'perfil';
 type LaunchesView = 'entries' | 'obligations' | 'history';
-type UserThemePreference = 'claro' | 'escuro' | 'sistema';
+type ThemePreference = 'light' | 'dark' | 'system';
 
 const PROJECTION_MONTHS = 24;
 const HOME_MONTHS_BATCH_SIZE = 6;
@@ -373,6 +373,14 @@ const normalizeMonthKey = (monthKey: string) => {
   return `${year}-${month.padStart(2, '0')}`;
 };
 
+const normalizeThemePreference = (value?: string | null): ThemePreference => {
+  const normalized = (value ?? '').trim().toLowerCase();
+
+  if (normalized === 'dark' || normalized === 'escuro') return 'dark';
+  if (normalized === 'system' || normalized === 'sistema') return 'system';
+  return 'light';
+};
+
 const normalizeBlockType = (blockType: unknown): '10' | '25' => {
   if (blockType === 10 || blockType === '10') {
     return '10';
@@ -400,7 +408,7 @@ export default function HomePage() {
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
   const [passwordSuccessMessage, setPasswordSuccessMessage] = useState('');
-  const [selectedTheme, setSelectedTheme] = useState<UserThemePreference>('sistema');
+  const [selectedTheme, setSelectedTheme] = useState<ThemePreference>('light');
   const [isSavingThemePreference, setIsSavingThemePreference] = useState(false);
   const [themeSuccessMessage, setThemeSuccessMessage] = useState('');
   const [familyId, setFamilyId] = useState('');
@@ -737,15 +745,31 @@ export default function HomePage() {
         return;
       }
 
-      const themeFromDatabase = preferenceData?.theme;
-
-      if (themeFromDatabase === 'claro' || themeFromDatabase === 'escuro' || themeFromDatabase === 'sistema') {
-        setSelectedTheme(themeFromDatabase);
-      }
+      const normalizedTheme = normalizeThemePreference(preferenceData?.theme);
+      setSelectedTheme(normalizedTheme);
     };
 
     void loadThemePreference();
   }, [userId]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') {
+      return;
+    }
+
+    const applyTheme = (theme: ThemePreference) => {
+      const resolvedTheme =
+        theme === 'system'
+          ? window.matchMedia('(prefers-color-scheme: dark)').matches
+            ? 'dark'
+            : 'light'
+          : theme;
+
+      document.documentElement.setAttribute('data-theme', resolvedTheme);
+    };
+
+    applyTheme(selectedTheme);
+  }, [selectedTheme]);
 
   const handleSaveProfileDisplayName = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -2052,7 +2076,7 @@ export default function HomePage() {
         return;
       }
 
-      setThemeSuccessMessage('Preferência de tema salva com sucesso.');
+      setThemeSuccessMessage('Preferência salva com sucesso.');
     } finally {
       setIsSavingThemePreference(false);
     }
@@ -3518,11 +3542,11 @@ export default function HomePage() {
                     <select
                       id="themePreference"
                       value={selectedTheme}
-                      onChange={(event) => setSelectedTheme(event.target.value as UserThemePreference)}
+                      onChange={(event) => setSelectedTheme(event.target.value as ThemePreference)}
                     >
-                      <option value="claro">Claro</option>
-                      <option value="escuro">Escuro</option>
-                      <option value="sistema">Sistema</option>
+                      <option value="light">Claro</option>
+                      <option value="dark">Escuro</option>
+                      <option value="system">Sistema</option>
                     </select>
                   </div>
                   <button type="submit" disabled={isSavingThemePreference}>
