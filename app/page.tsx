@@ -439,6 +439,10 @@ export default function HomePage() {
     return trimmedDisplayName || fallbackDisplayName;
   }, [displayName, fallbackDisplayName]);
 
+  const headerDisplayName = useMemo(() => {
+    return displayName.trim() || userEmail.split('@')[0] || 'Usuário';
+  }, [displayName, userEmail]);
+
   const normalizeDatabaseSourceTypes = async () => {
     await supabase.from('monthly_occurrences').update({ source_type: 'entry' }).eq('source_type', 'entries');
 
@@ -531,7 +535,7 @@ export default function HomePage() {
     console.log('Leitura inicial do perfil:', {
       userId: authenticatedUserId,
       profileData,
-      displayName: profileData?.display_name ?? null
+      profileError
     });
 
     if (profileError) {
@@ -703,113 +707,74 @@ export default function HomePage() {
 
   const handleSaveProfileDisplayName = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-
-    if (!userId) {
-      setError('Usuário não identificado para salvar perfil.');
-      return;
-    }
-
-    const normalizedName = displayNameDraft.trim();
-
-    if (!normalizedName) {
-      setError('Informe um nome de exibição válido.');
-      return;
-    }
-
     setError('');
     setProfileSuccessMessage('');
     setIsSavingProfile(true);
-    const profilePayload = {
-      id: userId,
-      display_name: normalizedName,
-      updated_at: new Date().toISOString()
-    };
+    try {
+      const trimmedDisplayName = displayNameDraft.trim();
 
-    console.log('Salvando nome de exibição com payload:', profilePayload);
+      if (!trimmedDisplayName) {
+        setError('Informe um nome de exibição válido.');
+        return;
+      }
 
-    const { data: upsertResult, error: saveProfileError } = await supabase
-      .from('profiles')
-      .upsert(profilePayload, { onConflict: 'id' })
-      .select('id, display_name')
-      .maybeSingle();
+      if (!userId) {
+        setError('Usuário não identificado.');
+        return;
+      }
 
-    console.log('Resultado do upsert de perfil:', {
-      upsertResult,
-      saveProfileError: saveProfileError
-        ? {
-            message: saveProfileError.message,
-            code: saveProfileError.code,
-            details: saveProfileError.details,
-            hint: saveProfileError.hint
-          }
-        : null
-    });
+      const payload = {
+        id: userId,
+        display_name: trimmedDisplayName
+      };
 
-    if (saveProfileError) {
-      console.error('Erro ao salvar nome de exibição do perfil:', {
-        message: saveProfileError.message,
-        code: saveProfileError.code,
-        details: saveProfileError.details,
-        hint: saveProfileError.hint,
-        userId,
-        payload: profilePayload
-      });
-      setError(`Não foi possível salvar o perfil: ${saveProfileError.message}`);
+      console.log('Saving profile payload:', payload);
+
+      const { error: upsertError } = await supabase
+        .from('profiles')
+        .upsert(payload, { onConflict: 'id' });
+
+      if (upsertError) {
+        console.error('Erro no upsert do profile:', {
+          message: upsertError.message,
+          code: upsertError.code,
+          details: upsertError.details,
+          hint: upsertError.hint
+        });
+        setError(`Não foi possível salvar o nome: ${upsertError.message}`);
+        return;
+      }
+
+      const { data: profileAfterSave, error: readAfterSaveError } = await supabase
+        .from('profiles')
+        .select('id, display_name')
+        .eq('id', userId)
+        .maybeSingle();
+
+      console.log('Profile after save:', profileAfterSave, readAfterSaveError);
+
+      if (readAfterSaveError) {
+        console.error('Erro ao reler profile após save:', {
+          message: readAfterSaveError.message,
+          code: readAfterSaveError.code,
+          details: readAfterSaveError.details,
+          hint: readAfterSaveError.hint
+        });
+        setError(`Salvou, mas falhou ao reler o perfil: ${readAfterSaveError.message}`);
+        return;
+      }
+
+      if (!profileAfterSave?.display_name) {
+        setError('O nome foi enviado, mas não voltou salvo da tabela profiles.');
+        return;
+      }
+
+      setDisplayName(profileAfterSave.display_name);
+      setDisplayNameDraft(profileAfterSave.display_name);
+      setProfileSuccessMessage('Nome atualizado com sucesso.');
+    } finally {
       setIsSavingProfile(false);
-      return;
     }
-
-    const { data: profileAfterSave, error: profileAfterSaveError } = await supabase
-      .from('profiles')
-      .select('id, display_name')
-      .eq('id', userId)
-      .maybeSingle();
-
-    console.log('Leitura do perfil após salvar:', {
-      userId,
-      profileAfterSave,
-      profileAfterSaveError: profileAfterSaveError
-        ? {
-            message: profileAfterSaveError.message,
-            code: profileAfterSaveError.code,
-            details: profileAfterSaveError.details,
-            hint: profileAfterSaveError.hint
-          }
-        : null
-    });
-
-    if (profileAfterSaveError) {
-      console.error('Erro ao reler perfil após salvar nome de exibição:', {
-        message: profileAfterSaveError.message,
-        code: profileAfterSaveError.code,
-        details: profileAfterSaveError.details,
-        hint: profileAfterSaveError.hint,
-        userId,
-        payload: profilePayload
-      });
-      setError(`Não foi possível confirmar o salvamento do perfil: ${profileAfterSaveError.message}`);
-      setIsSavingProfile(false);
-      return;
-    }
-
-    const savedDisplayName = String(profileAfterSave?.display_name ?? '').trim();
-
-    if (savedDisplayName !== normalizedName) {
-      console.error('Upsert executado, mas leitura subsequente não refletiu o valor esperado.', {
-        userId,
-        expectedDisplayName: normalizedName,
-        returnedDisplayName: savedDisplayName || null,
-        payload: profilePayload
-      });
-      setError('O nome foi enviado, mas não retornou salvo da tabela profiles.');
-      setIsSavingProfile(false);
-      return;
-    }
-
-    setDisplayName(savedDisplayName);
-    setDisplayNameDraft(savedDisplayName);
-    setProfileSuccessMessage('Nome atualizado com sucesso.');
-    setIsSavingProfile(false);
   };
 
   const projection = useMemo<ProjectionMonth[]>(() => {
@@ -2029,7 +1994,7 @@ export default function HomePage() {
           <div>
             <p className="brand-greeting">
               {greetingMessage}
-              {resolvedDisplayName ? `, ${resolvedDisplayName}` : ''}.
+              {headerDisplayName ? `, ${headerDisplayName}` : ''}.
             </p>
             <h1 className="app-title">Casa em Dia</h1>
           </div>
