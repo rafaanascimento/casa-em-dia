@@ -390,6 +390,11 @@ export default function HomePage() {
   const [isLoadingProjectionData, setIsLoadingProjectionData] = useState(false);
   const [userId, setUserId] = useState('');
   const [userEmail, setUserEmail] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [profileNameInput, setProfileNameInput] = useState('');
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileSuccessMessage, setProfileSuccessMessage] = useState('');
   const [familyId, setFamilyId] = useState('');
   const [familyName, setFamilyName] = useState('');
   const [hasFamilyMembership, setHasFamilyMembership] = useState(false);
@@ -423,6 +428,16 @@ export default function HomePage() {
   const [operationAmountDraft, setOperationAmountDraft] = useState('');
   const [operationStatusDraft, setOperationStatusDraft] = useState<'received' | 'paid'>('paid');
   const hasNormalizedSourceTypesRef = useRef(false);
+
+  const fallbackDisplayName = useMemo(() => {
+    const emailPrefix = userEmail.split('@')[0]?.trim();
+    return emailPrefix || 'Usuário';
+  }, [userEmail]);
+
+  const resolvedDisplayName = useMemo(() => {
+    const trimmedDisplayName = displayName.trim();
+    return trimmedDisplayName || fallbackDisplayName;
+  }, [displayName, fallbackDisplayName]);
 
   const normalizeDatabaseSourceTypes = async () => {
     await supabase.from('monthly_occurrences').update({ source_type: 'entry' }).eq('source_type', 'entries');
@@ -501,6 +516,39 @@ export default function HomePage() {
 
     return () => window.cancelAnimationFrame(frameId);
   }, [activeSection, launchTarget]);
+
+  const loadUserProfile = async (authenticatedUserId: string, authenticatedUserEmail: string) => {
+    setProfileLoading(true);
+
+    const emailFallback = authenticatedUserEmail.split('@')[0]?.trim() || 'Usuário';
+
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
+      .select('display_name, full_name')
+      .eq('id', authenticatedUserId)
+      .limit(1)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error('Erro ao carregar perfil do usuário:', {
+        error: profileError,
+        userId: authenticatedUserId
+      });
+      setError('Não foi possível carregar os dados do perfil.');
+      setDisplayName('');
+      setProfileNameInput(emailFallback);
+      setProfileLoading(false);
+      return;
+    }
+
+    const normalizedDisplayName = String(profileData?.display_name ?? profileData?.full_name ?? '')
+      .trim();
+    const nextDisplayName = normalizedDisplayName || emailFallback;
+
+    setDisplayName(nextDisplayName);
+    setProfileNameInput(nextDisplayName);
+    setProfileLoading(false);
+  };
 
   const loadFinancialData = async (currentFamilyId: string) => {
     setIsLoadingProjectionData(true);
@@ -615,6 +663,7 @@ export default function HomePage() {
       const authenticatedUser = data.session.user;
       setUserId(authenticatedUser.id);
       setUserEmail(authenticatedUser.email ?? '');
+      await loadUserProfile(authenticatedUser.id, authenticatedUser.email ?? '');
 
       const { data: familyMember, error: familyMembershipError } = await supabase
         .from('family_members')
@@ -644,6 +693,52 @@ export default function HomePage() {
 
     void checkSessionAndFamily();
   }, [router]);
+
+  const handleSaveProfile = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!userId) {
+      setError('Usuário não identificado para salvar perfil.');
+      return;
+    }
+
+    const normalizedName = profileNameInput.trim();
+
+    if (!normalizedName) {
+      setError('Informe um nome de exibição válido.');
+      return;
+    }
+
+    setError('');
+    setProfileSuccessMessage('');
+    setProfileSaving(true);
+
+    const { error: saveProfileError } = await supabase
+      .from('profiles')
+      .upsert(
+        {
+          id: userId,
+          display_name: normalizedName,
+          full_name: normalizedName
+        },
+        { onConflict: 'id' }
+      );
+
+    if (saveProfileError) {
+      console.error('Erro ao salvar nome de exibição do perfil:', {
+        error: saveProfileError,
+        userId
+      });
+      setError(`Não foi possível salvar o perfil: ${saveProfileError.message}`);
+      setProfileSaving(false);
+      return;
+    }
+
+    setDisplayName(normalizedName);
+    setProfileNameInput(normalizedName);
+    setProfileSuccessMessage('Nome de exibição atualizado com sucesso.');
+    setProfileSaving(false);
+  };
 
   const projection = useMemo<ProjectionMonth[]>(() => {
     const nowMonth = getMonthStart(new Date());
@@ -1862,7 +1957,7 @@ export default function HomePage() {
           <div>
             <p className="brand-greeting">
               {greetingMessage}
-              {userEmail ? `, ${userEmail.split('@')[0]}` : ''}.
+              {resolvedDisplayName ? `, ${resolvedDisplayName}` : ''}.
             </p>
             <h1 className="app-title">Casa em Dia</h1>
           </div>
@@ -3188,9 +3283,34 @@ export default function HomePage() {
                 👤
               </div>
               <div>
-                <p className="profile-name">{userEmail ? userEmail.split('@')[0] : 'Usuário'}</p>
+                <p className="profile-name">{resolvedDisplayName}</p>
                 <p className="profile-email">{userEmail || 'E-mail não identificado'}</p>
               </div>
+            </article>
+
+            <article className="profile-section-card profile-edit-card">
+              <h3>Dados do perfil</h3>
+              <p>Defina como seu nome deve aparecer no aplicativo.</p>
+              <form className="profile-edit-form" onSubmit={handleSaveProfile}>
+                <div>
+                  <label htmlFor="displayName">Nome de exibição</label>
+                  <input
+                    id="displayName"
+                    type="text"
+                    value={profileNameInput}
+                    onChange={(event) => setProfileNameInput(event.target.value)}
+                    placeholder="Seu nome"
+                    maxLength={80}
+                    disabled={profileLoading || profileSaving}
+                    required
+                  />
+                </div>
+                <button type="submit" disabled={profileLoading || profileSaving}>
+                  {profileSaving ? 'Salvando...' : 'Salvar alterações'}
+                </button>
+              </form>
+              {profileLoading ? <p className="profile-feedback">Carregando perfil...</p> : null}
+              {profileSuccessMessage ? <p className="success-message">{profileSuccessMessage}</p> : null}
             </article>
 
             <div className="profile-sections">
