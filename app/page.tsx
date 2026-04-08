@@ -122,6 +122,7 @@ type MonthRiskAnalysis = {
 
 type DashboardSection = 'home' | 'lancamentos' | 'projecao' | 'perfil';
 type LaunchesView = 'entries' | 'obligations' | 'history';
+type ThemePreference = 'light' | 'dark';
 
 const PROJECTION_MONTHS = 24;
 const HOME_MONTHS_BATCH_SIZE = 6;
@@ -372,6 +373,13 @@ const normalizeMonthKey = (monthKey: string) => {
   return `${year}-${month.padStart(2, '0')}`;
 };
 
+const normalizeThemePreference = (value?: string | null): ThemePreference => {
+  const normalized = (value ?? '').trim().toLowerCase();
+
+  if (normalized === 'dark' || normalized === 'escuro') return 'dark';
+  return 'light';
+};
+
 const normalizeBlockType = (blockType: unknown): '10' | '25' => {
   if (blockType === 10 || blockType === '10') {
     return '10';
@@ -390,6 +398,17 @@ export default function HomePage() {
   const [isLoadingProjectionData, setIsLoadingProjectionData] = useState(false);
   const [userId, setUserId] = useState('');
   const [userEmail, setUserEmail] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [displayNameDraft, setDisplayNameDraft] = useState('');
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileSuccessMessage, setProfileSuccessMessage] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+  const [passwordSuccessMessage, setPasswordSuccessMessage] = useState('');
+  const [selectedTheme, setSelectedTheme] = useState<ThemePreference>('light');
+  const [isTogglingTheme, setIsTogglingTheme] = useState(false);
   const [familyId, setFamilyId] = useState('');
   const [familyName, setFamilyName] = useState('');
   const [hasFamilyMembership, setHasFamilyMembership] = useState(false);
@@ -423,6 +442,20 @@ export default function HomePage() {
   const [operationAmountDraft, setOperationAmountDraft] = useState('');
   const [operationStatusDraft, setOperationStatusDraft] = useState<'received' | 'paid'>('paid');
   const hasNormalizedSourceTypesRef = useRef(false);
+
+  const fallbackDisplayName = useMemo(() => {
+    const emailPrefix = userEmail.split('@')[0]?.trim();
+    return emailPrefix || 'Usuário';
+  }, [userEmail]);
+
+  const resolvedDisplayName = useMemo(() => {
+    const trimmedDisplayName = displayName.trim();
+    return trimmedDisplayName || fallbackDisplayName;
+  }, [displayName, fallbackDisplayName]);
+
+  const headerDisplayName = useMemo(() => {
+    return displayName.trim() || userEmail.split('@')[0] || 'Usuário';
+  }, [displayName, userEmail]);
 
   const normalizeDatabaseSourceTypes = async () => {
     await supabase.from('monthly_occurrences').update({ source_type: 'entry' }).eq('source_type', 'entries');
@@ -501,6 +534,46 @@ export default function HomePage() {
 
     return () => window.cancelAnimationFrame(frameId);
   }, [activeSection, launchTarget]);
+
+  const loadUserProfile = async (authenticatedUserId: string, authenticatedUserEmail: string) => {
+    setProfileLoading(true);
+
+    const emailFallback = authenticatedUserEmail.split('@')[0]?.trim() || 'Usuário';
+
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, display_name')
+      .eq('id', authenticatedUserId)
+      .maybeSingle();
+
+    console.log('Leitura inicial do perfil:', {
+      userId: authenticatedUserId,
+      profileData,
+      profileError
+    });
+
+    if (profileError) {
+      console.error('Erro ao carregar perfil do usuário:', {
+        message: profileError.message,
+        code: profileError.code,
+        details: profileError.details,
+        hint: profileError.hint,
+        userId: authenticatedUserId
+      });
+      setError('Não foi possível carregar os dados do perfil.');
+      setDisplayName('');
+      setDisplayNameDraft(emailFallback);
+      setProfileLoading(false);
+      return;
+    }
+
+    const normalizedDisplayName = String(profileData?.display_name ?? '').trim();
+    const nextDisplayName = normalizedDisplayName || emailFallback;
+
+    setDisplayName(nextDisplayName);
+    setDisplayNameDraft(nextDisplayName);
+    setProfileLoading(false);
+  };
 
   const loadFinancialData = async (currentFamilyId: string) => {
     setIsLoadingProjectionData(true);
@@ -615,6 +688,7 @@ export default function HomePage() {
       const authenticatedUser = data.session.user;
       setUserId(authenticatedUser.id);
       setUserEmail(authenticatedUser.email ?? '');
+      await loadUserProfile(authenticatedUser.id, authenticatedUser.email ?? '');
 
       const { data: familyMember, error: familyMembershipError } = await supabase
         .from('family_members')
@@ -644,6 +718,121 @@ export default function HomePage() {
 
     void checkSessionAndFamily();
   }, [router]);
+
+  useEffect(() => {
+    const loadThemePreference = async () => {
+      if (!userId) {
+        return;
+      }
+
+      const { data: preferenceData, error: preferenceError } = await supabase
+        .from('user_preferences')
+        .select('theme')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (preferenceError) {
+        console.error('Erro ao carregar preferência de tema:', {
+          message: preferenceError.message,
+          code: preferenceError.code,
+          details: preferenceError.details,
+          hint: preferenceError.hint,
+          userId
+        });
+        setError(`Não foi possível carregar preferências: ${preferenceError.message}`);
+        return;
+      }
+
+      const normalizedTheme = normalizeThemePreference(preferenceData?.theme);
+      setSelectedTheme(normalizedTheme);
+    };
+
+    void loadThemePreference();
+  }, [userId]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') {
+      return;
+    }
+
+    const applyTheme = (theme: ThemePreference) => {
+      document.documentElement.setAttribute('data-theme', theme);
+    };
+
+    applyTheme(selectedTheme);
+  }, [selectedTheme]);
+
+  const handleSaveProfileDisplayName = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError('');
+    setProfileSuccessMessage('');
+    setIsSavingProfile(true);
+    try {
+      const trimmedDisplayName = displayNameDraft.trim();
+
+      if (!trimmedDisplayName) {
+        setError('Informe um nome de exibição válido.');
+        return;
+      }
+
+      if (!userId) {
+        setError('Usuário não identificado.');
+        return;
+      }
+
+      const payload = {
+        id: userId,
+        display_name: trimmedDisplayName
+      };
+
+      console.log('Saving profile payload:', payload);
+
+      const { error: upsertError } = await supabase
+        .from('profiles')
+        .upsert(payload, { onConflict: 'id' });
+
+      if (upsertError) {
+        console.error('Erro no upsert do profile:', {
+          message: upsertError.message,
+          code: upsertError.code,
+          details: upsertError.details,
+          hint: upsertError.hint
+        });
+        setError(`Não foi possível salvar o nome: ${upsertError.message}`);
+        return;
+      }
+
+      const { data: profileAfterSave, error: readAfterSaveError } = await supabase
+        .from('profiles')
+        .select('id, display_name')
+        .eq('id', userId)
+        .maybeSingle();
+
+      console.log('Profile after save:', profileAfterSave, readAfterSaveError);
+
+      if (readAfterSaveError) {
+        console.error('Erro ao reler profile após save:', {
+          message: readAfterSaveError.message,
+          code: readAfterSaveError.code,
+          details: readAfterSaveError.details,
+          hint: readAfterSaveError.hint
+        });
+        setError(`Salvou, mas falhou ao reler o perfil: ${readAfterSaveError.message}`);
+        return;
+      }
+
+      if (!profileAfterSave?.display_name) {
+        setError('O nome foi enviado, mas não voltou salvo da tabela profiles.');
+        return;
+      }
+
+      setDisplayName(profileAfterSave.display_name);
+      setDisplayNameDraft(profileAfterSave.display_name);
+      setProfileSuccessMessage('Nome atualizado com sucesso.');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
 
   const projection = useMemo<ProjectionMonth[]>(() => {
     const nowMonth = getMonthStart(new Date());
@@ -1010,54 +1199,6 @@ export default function HomePage() {
     [currentMonthCommitments]
   );
 
-  const getOperationalSummary = (items: typeof currentMonthCommitments) => {
-    return items.reduce(
-      (summary, item) => {
-        if (item.kind === 'Entrada') {
-          summary.entriesPlanned += item.amount;
-
-          if (item.status === 'received') {
-            summary.entriesReceived += item.effectiveAmount;
-          }
-
-          return summary;
-        }
-
-        summary.obligationsPlanned += item.amount;
-
-        if (item.status === 'paid') {
-          summary.obligationsPaid += item.effectiveAmount;
-        }
-
-        return summary;
-      },
-      {
-        entriesPlanned: 0,
-        entriesReceived: 0,
-        obligationsPlanned: 0,
-        obligationsPaid: 0
-      }
-    );
-  };
-
-
-  const currentMonthHomeSummary = useMemo(() => {
-    const mergedSummary = getOperationalSummary(currentMonthCommitments);
-    const entriesPending = mergedSummary.entriesPlanned - mergedSummary.entriesReceived;
-    const obligationsPending = mergedSummary.obligationsPlanned - mergedSummary.obligationsPaid;
-
-    return {
-      entriesPlanned: mergedSummary.entriesPlanned,
-      entriesReceived: mergedSummary.entriesReceived,
-      entriesPending,
-      obligationsPlanned: mergedSummary.obligationsPlanned,
-      obligationsPaid: mergedSummary.obligationsPaid,
-      obligationsPending,
-      plannedBalance: mergedSummary.entriesPlanned - mergedSummary.obligationsPlanned,
-      operationalBalance: mergedSummary.entriesReceived - mergedSummary.obligationsPaid
-    };
-  }, [currentMonthCommitments]);
-
   const handleOpenCommitmentEditor = (
     itemId: string,
     defaultAmount: number,
@@ -1129,30 +1270,74 @@ export default function HomePage() {
     await loadFinancialData(familyId);
   };
 
-  const handleResetMonth = async (monthKey: string) => {
+  const handleToggleCommitmentStatus = async (item: (typeof currentMonthCommitments)[number]) => {
+    if (item.status === 'pending') {
+      await handleSetOccurrenceStatus(
+        item.sourceType,
+        item.id,
+        currentMonthKey,
+        item.title,
+        item.effectiveAmount,
+        item.blockType,
+        item.kind === 'Entrada' ? 'received' : 'paid'
+      );
+      setOpenCommitmentMenuKey(null);
+      return;
+    }
+
+    await handleUndoCommitmentOperation(item);
+  };
+
+  const handleDeleteCommitmentRecord = async (item: (typeof currentMonthCommitments)[number]) => {
     if (!familyId) {
       setError('Família não identificada.');
       return;
     }
 
-    const confirmReset = window.confirm('Deseja resetar este mês?');
-    if (!confirmReset) {
+    const shouldDeleteRecord = window.confirm('Tem certeza que deseja excluir este registro?');
+    if (!shouldDeleteRecord) {
       return;
     }
 
     setError('');
 
-    const normalizedMonthKey = normalizeMonthKey(monthKey);
+    const normalizedSourceId = item.id.trim();
+    const normalizedSourceType = toDatabaseSourceType(item.sourceType);
+    const sourceTable = item.sourceType === 'entry' ? 'entries' : 'obligations';
 
-    const { error: resetError } = await supabase
+    const { error: deleteRecordError } = await supabase
+      .from(sourceTable)
+      .delete()
+      .eq('family_id', familyId)
+      .eq('id', item.id);
+
+    if (deleteRecordError) {
+      console.error('Erro ao excluir registro real do compromisso:', {
+        error: deleteRecordError,
+        familyId,
+        sourceTable,
+        itemId: item.id,
+        sourceType: item.sourceType
+      });
+      setError(`Não foi possível excluir o registro: ${deleteRecordError.message}`);
+      return;
+    }
+
+    const { error: deleteOccurrencesError } = await supabase
       .from('monthly_occurrences')
       .delete()
       .eq('family_id', familyId)
-      .eq('month_key', normalizedMonthKey);
+      .eq('source_id', normalizedSourceId)
+      .eq('source_type', normalizedSourceType);
 
-    if (resetError) {
-      console.error('Erro ao resetar mês:', resetError);
-      setError(`Não foi possível resetar o mês: ${resetError.message}`);
+    if (deleteOccurrencesError) {
+      console.error('Erro ao excluir ocorrências mensais após exclusão do registro:', {
+        error: deleteOccurrencesError,
+        familyId,
+        sourceId: normalizedSourceId,
+        sourceType: normalizedSourceType
+      });
+      setError(`Registro excluído, mas houve erro ao limpar ocorrências mensais: ${deleteOccurrencesError.message}`);
       return;
     }
 
@@ -1163,7 +1348,102 @@ export default function HomePage() {
   };
 
   const handleResetCurrentMonth = async () => {
-    await handleResetMonth(currentMonthKey);
+    if (!familyId) {
+      setError('Família não identificada.');
+      return;
+    }
+
+    if (currentMonthCommitments.length === 0) {
+      setError('Não há compromissos para resetar neste mês.');
+      return;
+    }
+
+    const confirmReset = window.confirm('Deseja resetar o mês atual e excluir todos os registros exibidos?');
+    if (!confirmReset) {
+      return;
+    }
+
+    setError('');
+
+    const entryIdsToDelete = Array.from(
+      new Set(
+        currentMonthCommitments
+          .filter((item) => item.sourceType === 'entry')
+          .map((item) => item.id.trim())
+          .filter(Boolean)
+      )
+    );
+    const obligationIdsToDelete = Array.from(
+      new Set(
+        currentMonthCommitments
+          .filter((item) => item.sourceType === 'obligation')
+          .map((item) => item.id.trim())
+          .filter(Boolean)
+      )
+    );
+    const allCommitmentIds = Array.from(new Set([...entryIdsToDelete, ...obligationIdsToDelete]));
+
+    if (entryIdsToDelete.length > 0) {
+      const { error: deleteEntriesError } = await supabase
+        .from('entries')
+        .delete()
+        .eq('family_id', familyId)
+        .in('id', entryIdsToDelete);
+
+      if (deleteEntriesError) {
+        console.error('Erro ao resetar mês atual: falha ao excluir entradas.', {
+          error: deleteEntriesError,
+          familyId,
+          currentMonthKey,
+          entryIdsToDelete
+        });
+        setError(`Não foi possível resetar o mês: ${deleteEntriesError.message}`);
+        return;
+      }
+    }
+
+    if (obligationIdsToDelete.length > 0) {
+      const { error: deleteObligationsError } = await supabase
+        .from('obligations')
+        .delete()
+        .eq('family_id', familyId)
+        .in('id', obligationIdsToDelete);
+
+      if (deleteObligationsError) {
+        console.error('Erro ao resetar mês atual: falha ao excluir despesas.', {
+          error: deleteObligationsError,
+          familyId,
+          currentMonthKey,
+          obligationIdsToDelete
+        });
+        setError(`Não foi possível resetar o mês: ${deleteObligationsError.message}`);
+        return;
+      }
+    }
+
+    if (allCommitmentIds.length > 0) {
+      const { error: deleteOccurrencesError } = await supabase
+        .from('monthly_occurrences')
+        .delete()
+        .eq('family_id', familyId)
+        .in('source_id', allCommitmentIds);
+
+      if (deleteOccurrencesError) {
+        console.error('Erro ao resetar mês atual: falha ao excluir ocorrências mensais.', {
+          error: deleteOccurrencesError,
+          familyId,
+          currentMonthKey,
+          allCommitmentIds
+        });
+        setError(`Não foi possível resetar o mês: ${deleteOccurrencesError.message}`);
+        return;
+      }
+    }
+
+    setOpenCommitmentMenuKey(null);
+    setActiveCommitmentEditorKey(null);
+    setOperationAmountDraft('');
+    await loadFinancialData(familyId);
   };
 
   const monthPlannedVsActualByKey = useMemo(() => {
@@ -1680,6 +1960,89 @@ export default function HomePage() {
     router.replace('/login');
   };
 
+  const handleUpdatePassword = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    setError('');
+    setPasswordSuccessMessage('');
+    setIsUpdatingPassword(true);
+
+    try {
+      if (newPassword.length < 6) {
+        setError('A nova senha deve ter pelo menos 6 caracteres.');
+        return;
+      }
+
+      if (newPassword !== confirmNewPassword) {
+        setError('As senhas informadas não são iguais.');
+        return;
+      }
+
+      const { error: updatePasswordError } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (updatePasswordError) {
+        console.error('Erro ao atualizar senha:', {
+          message: updatePasswordError.message,
+          code: updatePasswordError.code,
+          name: updatePasswordError.name
+        });
+        setError(`Não foi possível atualizar a senha: ${updatePasswordError.message}`);
+        return;
+      }
+
+      setPasswordSuccessMessage('Senha atualizada com sucesso');
+      setNewPassword('');
+      setConfirmNewPassword('');
+    } finally {
+      setIsUpdatingPassword(false);
+    }
+  };
+
+  const handleToggleTheme = async () => {
+    if (!userId) {
+      setError('Usuário não identificado.');
+      return;
+    }
+
+    const nextTheme: ThemePreference = selectedTheme === 'dark' ? 'light' : 'dark';
+    const previousTheme = selectedTheme;
+
+    setSelectedTheme(nextTheme);
+    setError('');
+    setIsTogglingTheme(true);
+
+    try {
+      const { error: saveThemeError } = await supabase
+        .from('user_preferences')
+        .upsert(
+          {
+            user_id: userId,
+            theme: nextTheme,
+            updated_at: new Date().toISOString()
+          },
+          { onConflict: 'user_id' }
+        );
+
+      if (saveThemeError) {
+        console.error('Erro ao salvar preferência de tema:', {
+          message: saveThemeError.message,
+          code: saveThemeError.code,
+          details: saveThemeError.details,
+          hint: saveThemeError.hint,
+          userId,
+          selectedTheme: nextTheme
+        });
+        setError(`Não foi possível salvar o tema: ${saveThemeError.message}`);
+        setSelectedTheme(previousTheme);
+        return;
+      }
+    } finally {
+      setIsTogglingTheme(false);
+    }
+  };
+
   const handleMonthDetailsToggle = (monthKey: string, isOpen: boolean) => {
     setExpandedMonthKeys((previous) => {
       if (isOpen) {
@@ -1741,10 +2104,20 @@ export default function HomePage() {
           <div>
             <p className="brand-greeting">
               {greetingMessage}
-              {userEmail ? `, ${userEmail.split('@')[0]}` : ''}.
+              {headerDisplayName ? `, ${headerDisplayName}` : ''}.
             </p>
             <h1 className="app-title">Casa em Dia</h1>
           </div>
+          <button
+            type="button"
+            className="theme-toggle-button"
+            onClick={() => void handleToggleTheme()}
+            disabled={isTogglingTheme}
+            aria-label={selectedTheme === 'dark' ? 'Ativar tema claro' : 'Ativar tema escuro'}
+            title={selectedTheme === 'dark' ? 'Ativar tema claro' : 'Ativar tema escuro'}
+          >
+            {selectedTheme === 'dark' ? '☀️' : '🌙'}
+          </button>
         </div>
       </header>
       <div className="content-grid">
@@ -1875,10 +2248,22 @@ export default function HomePage() {
                             <button
                               type="button"
                               className="home-commitment-action-button is-danger"
-                              disabled={item.status === 'pending'}
-                              onClick={() => void handleUndoCommitmentOperation(item)}
+                              onClick={() => void handleDeleteCommitmentRecord(item)}
                             >
                               Excluir registro
+                            </button>
+                            <button
+                              type="button"
+                              className="home-commitment-action-button"
+                              onClick={() => void handleToggleCommitmentStatus(item)}
+                            >
+                              {item.kind === 'Entrada'
+                                ? item.status === 'pending'
+                                  ? 'Marcar como recebida'
+                                  : 'Desfazer recebimento'
+                                : item.status === 'pending'
+                                  ? 'Marcar como paga'
+                                  : 'Desfazer pagamento'}
                             </button>
                           </div>
                         ) : null}
@@ -1992,44 +2377,6 @@ export default function HomePage() {
                 </details>
               </section>
 
-              <section className="home-month-total">
-                <h3>Total geral do mês</h3>
-                <p>
-                  Entradas previstas: <span className="money-value">{currencyFormatter.format(currentMonthHomeSummary.entriesPlanned)}</span>
-                </p>
-                <p>
-                  Entradas recebidas:{' '}
-                  <span className="money-value">{currencyFormatter.format(currentMonthHomeSummary.entriesReceived)}</span>
-                </p>
-                <p>
-                  Entradas pendentes:{' '}
-                  <span className="money-value">{currencyFormatter.format(currentMonthHomeSummary.entriesPending)}</span>
-                </p>
-                <p>
-                  Despesas previstas:{' '}
-                  <span className="money-value">{currencyFormatter.format(currentMonthHomeSummary.obligationsPlanned)}</span>
-                </p>
-                <p>
-                  Despesas pagas:{' '}
-                  <span className="money-value">{currencyFormatter.format(currentMonthHomeSummary.obligationsPaid)}</span>
-                </p>
-                <p>
-                  Despesas pendentes:{' '}
-                  <span className="money-value">{currencyFormatter.format(currentMonthHomeSummary.obligationsPending)}</span>
-                </p>
-                <p>
-                  Saldo previsto:{' '}
-                  <span className={`money-value ${getBalanceTone(currentMonthHomeSummary.plannedBalance)}`}>
-                    {currencyFormatter.format(currentMonthHomeSummary.plannedBalance)}
-                  </span>
-                </p>
-                <p>
-                  Saldo operacional:{' '}
-                  <span className={`money-value ${getBalanceTone(currentMonthHomeSummary.operationalBalance)}`}>
-                    {currencyFormatter.format(currentMonthHomeSummary.operationalBalance)}
-                  </span>
-                </p>
-              </section>
             </>
           ) : (
             <p>Sem dados disponíveis para o mês atual.</p>
@@ -3068,25 +3415,84 @@ export default function HomePage() {
                 👤
               </div>
               <div>
-                <p className="profile-name">{userEmail ? userEmail.split('@')[0] : 'Usuário'}</p>
+                <p className="profile-name">{resolvedDisplayName}</p>
                 <p className="profile-email">{userEmail || 'E-mail não identificado'}</p>
               </div>
+            </article>
+
+            <article className="profile-section-card profile-edit-card">
+              <h3>Dados do perfil</h3>
+              <p>Defina como seu nome deve aparecer no aplicativo.</p>
+              <form className="profile-edit-form" onSubmit={handleSaveProfileDisplayName}>
+                <div>
+                  <label htmlFor="displayName">Nome de exibição</label>
+                  <input
+                    id="displayName"
+                    type="text"
+                    value={displayNameDraft}
+                    onChange={(event) => setDisplayNameDraft(event.target.value)}
+                    placeholder="Seu nome"
+                    maxLength={80}
+                    disabled={profileLoading || isSavingProfile}
+                    required
+                  />
+                </div>
+                <button type="submit" disabled={profileLoading || isSavingProfile}>
+                  {isSavingProfile ? 'Salvando...' : 'Salvar alterações'}
+                </button>
+              </form>
+              {profileLoading ? <p className="profile-feedback">Carregando perfil...</p> : null}
+              {profileSuccessMessage ? <p className="success-message">{profileSuccessMessage}</p> : null}
             </article>
 
             <div className="profile-sections">
               <article className="profile-section-card">
                 <h3>Conta</h3>
                 <p>Dados essenciais da sua conta para identificação e acesso.</p>
+                <form className="profile-edit-form" onSubmit={handleUpdatePassword}>
+                  <div>
+                    <label htmlFor="newPassword">Nova senha</label>
+                    <input
+                      id="newPassword"
+                      type="password"
+                      value={newPassword}
+                      onChange={(event) => setNewPassword(event.target.value)}
+                      minLength={6}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="confirmNewPassword">Confirmar senha</label>
+                    <input
+                      id="confirmNewPassword"
+                      type="password"
+                      value={confirmNewPassword}
+                      onChange={(event) => setConfirmNewPassword(event.target.value)}
+                      minLength={6}
+                      required
+                    />
+                  </div>
+                  <button type="submit" disabled={isUpdatingPassword}>
+                    {isUpdatingPassword ? 'Salvando...' : 'Atualizar senha'}
+                  </button>
+                </form>
+                {passwordSuccessMessage ? <p className="success-message">{passwordSuccessMessage}</p> : null}
               </article>
 
               <article className="profile-section-card">
                 <h3>Preferências</h3>
                 <p>Ajustes visuais e de navegação serão centralizados aqui.</p>
+                <p>Use o botão de tema no cabeçalho para alternar entre modo claro e escuro.</p>
               </article>
 
               <article className="profile-section-card">
                 <h3>Sobre o app</h3>
-                <p>Casa em Dia foi feito para simplificar o controle financeiro da família.</p>
+                <p>
+                  Casa em Dia foi desenvolvido para simplificar o controle financeiro familiar, com foco em
+                  organização, clareza e praticidade.
+                </p>
+                <p>Versão: v1.0.0</p>
+                <p>Desenvolvido por Rafael</p>
               </article>
             </div>
 
