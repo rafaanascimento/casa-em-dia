@@ -1199,54 +1199,6 @@ export default function HomePage() {
     [currentMonthCommitments]
   );
 
-  const getOperationalSummary = (items: typeof currentMonthCommitments) => {
-    return items.reduce(
-      (summary, item) => {
-        if (item.kind === 'Entrada') {
-          summary.entriesPlanned += item.amount;
-
-          if (item.status === 'received') {
-            summary.entriesReceived += item.effectiveAmount;
-          }
-
-          return summary;
-        }
-
-        summary.obligationsPlanned += item.amount;
-
-        if (item.status === 'paid') {
-          summary.obligationsPaid += item.effectiveAmount;
-        }
-
-        return summary;
-      },
-      {
-        entriesPlanned: 0,
-        entriesReceived: 0,
-        obligationsPlanned: 0,
-        obligationsPaid: 0
-      }
-    );
-  };
-
-
-  const currentMonthHomeSummary = useMemo(() => {
-    const mergedSummary = getOperationalSummary(currentMonthCommitments);
-    const entriesPending = mergedSummary.entriesPlanned - mergedSummary.entriesReceived;
-    const obligationsPending = mergedSummary.obligationsPlanned - mergedSummary.obligationsPaid;
-
-    return {
-      entriesPlanned: mergedSummary.entriesPlanned,
-      entriesReceived: mergedSummary.entriesReceived,
-      entriesPending,
-      obligationsPlanned: mergedSummary.obligationsPlanned,
-      obligationsPaid: mergedSummary.obligationsPaid,
-      obligationsPending,
-      plannedBalance: mergedSummary.entriesPlanned - mergedSummary.obligationsPlanned,
-      operationalBalance: mergedSummary.entriesReceived - mergedSummary.obligationsPaid
-    };
-  }, [currentMonthCommitments]);
-
   const handleOpenCommitmentEditor = (
     itemId: string,
     defaultAmount: number,
@@ -1316,6 +1268,24 @@ export default function HomePage() {
     setActiveCommitmentEditorKey(null);
     setOperationAmountDraft('');
     await loadFinancialData(familyId);
+  };
+
+  const handleToggleCommitmentStatus = async (item: (typeof currentMonthCommitments)[number]) => {
+    if (item.status === 'pending') {
+      await handleSetOccurrenceStatus(
+        item.sourceType,
+        item.id,
+        currentMonthKey,
+        item.title,
+        item.effectiveAmount,
+        item.blockType,
+        item.kind === 'Entrada' ? 'received' : 'paid'
+      );
+      setOpenCommitmentMenuKey(null);
+      return;
+    }
+
+    await handleUndoCommitmentOperation(item);
   };
 
   const handleDeleteCommitmentRecord = async (item: (typeof currentMonthCommitments)[number]) => {
@@ -2282,6 +2252,19 @@ export default function HomePage() {
                             >
                               Excluir registro
                             </button>
+                            <button
+                              type="button"
+                              className="home-commitment-action-button"
+                              onClick={() => void handleToggleCommitmentStatus(item)}
+                            >
+                              {item.kind === 'Entrada'
+                                ? item.status === 'pending'
+                                  ? 'Marcar como recebida'
+                                  : 'Desfazer recebimento'
+                                : item.status === 'pending'
+                                  ? 'Marcar como paga'
+                                  : 'Desfazer pagamento'}
+                            </button>
                           </div>
                         ) : null}
 
@@ -2394,44 +2377,6 @@ export default function HomePage() {
                 </details>
               </section>
 
-              <section className="home-month-total">
-                <h3>Total geral do mês</h3>
-                <p>
-                  Entradas previstas: <span className="money-value">{currencyFormatter.format(currentMonthHomeSummary.entriesPlanned)}</span>
-                </p>
-                <p>
-                  Entradas recebidas:{' '}
-                  <span className="money-value">{currencyFormatter.format(currentMonthHomeSummary.entriesReceived)}</span>
-                </p>
-                <p>
-                  Entradas pendentes:{' '}
-                  <span className="money-value">{currencyFormatter.format(currentMonthHomeSummary.entriesPending)}</span>
-                </p>
-                <p>
-                  Despesas previstas:{' '}
-                  <span className="money-value">{currencyFormatter.format(currentMonthHomeSummary.obligationsPlanned)}</span>
-                </p>
-                <p>
-                  Despesas pagas:{' '}
-                  <span className="money-value">{currencyFormatter.format(currentMonthHomeSummary.obligationsPaid)}</span>
-                </p>
-                <p>
-                  Despesas pendentes:{' '}
-                  <span className="money-value">{currencyFormatter.format(currentMonthHomeSummary.obligationsPending)}</span>
-                </p>
-                <p>
-                  Saldo previsto:{' '}
-                  <span className={`money-value ${getBalanceTone(currentMonthHomeSummary.plannedBalance)}`}>
-                    {currencyFormatter.format(currentMonthHomeSummary.plannedBalance)}
-                  </span>
-                </p>
-                <p>
-                  Saldo operacional:{' '}
-                  <span className={`money-value ${getBalanceTone(currentMonthHomeSummary.operationalBalance)}`}>
-                    {currencyFormatter.format(currentMonthHomeSummary.operationalBalance)}
-                  </span>
-                </p>
-              </section>
             </>
           ) : (
             <p>Sem dados disponíveis para o mês atual.</p>
